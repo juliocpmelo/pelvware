@@ -32,10 +32,10 @@ class ApplicationWindow(QtGui.QMainWindow):
 
         self.hBoxLayout1 = QtGui.QHBoxLayout()
         self.vBoxLayout = QtGui.QVBoxLayout()
-        self.hBoxLayout2 = QtGui.QHBoxLayout()
+        self.vBoxLayout2 = QtGui.QVBoxLayout()
 
         self.hBoxLayout1.addLayout(self.vBoxLayout)
-        self.hBoxLayout1.addLayout(self.hBoxLayout2)
+        self.hBoxLayout1.addLayout(self.vBoxLayout2)
         self.centralWidget.setLayout(self.hBoxLayout1)
         self.setGeometry(300, 300, 1200, 900)
 
@@ -46,14 +46,14 @@ class ApplicationWindow(QtGui.QMainWindow):
         self.btn = QtGui.QPushButton('Teste')
         self.btn2 = QtGui.QPushButton('Teste')
 
-        self.p1 = pg.PlotWidget()
+        self.p1 = pg.PlotWidget()  # Main plot
+        self.p2 = pg.PlotWidget()  # Scrolling Plot
 
         self.vBoxLayout.addWidget(self.btn)
         self.vBoxLayout.addWidget(self.btn2)
         self.vBoxLayout.addStretch(1)
-        # self.hBoxLayout2.addWidget(self.p1)
+        # self.vBoxLayout2.addWidget(self.p1)
 
-        self.p1.setXRange(0, 400, padding=0)
         self.p1.showGrid(x=True, y=True)
         # self.p1.plot(x=self.x, y=self.y, pen='r')
 
@@ -81,8 +81,14 @@ class ApplicationWindow(QtGui.QMainWindow):
         self.x = []
         self.y = []
         self.separateData(file)
+        self.p1.setXRange(0, self.x[-1]*0.1, padding=0)
         self.p1.plot(x=self.x, y=self.y, pen='r')
-        self.hBoxLayout2.addWidget(self.p1)
+        self.p2.plot(x=self.x, y=self.y, pen='r')
+        self.linearRegion = pg.LinearRegionItem([0, (self.x[-1]*0.1)])
+        self.linearRegion.setZValue(-10)
+        self.p2.addItem(self.linearRegion)
+        self.vBoxLayout2.addWidget(self.p1, stretch=6)
+        self.vBoxLayout2.addWidget(self.p2, stretch=1)
 
     def writeFile(self, text):
         file = open('teste.log', 'a')
