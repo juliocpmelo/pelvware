@@ -78,17 +78,33 @@ class ApplicationWindow(QtGui.QMainWindow):
 
     def plotFile(self):
         file = open(self.fileName, 'r')
+
         self.x = []
         self.y = []
         self.separateData(file)
-        self.p1.setXRange(0, self.x[-1]*0.1, padding=0)
+
+        self.p1.setXRange(0, self.x[-1] * 0.1, padding=0)
+
         self.p1.plot(x=self.x, y=self.y, pen='r')
         self.p2.plot(x=self.x, y=self.y, pen='r')
-        self.linearRegion = pg.LinearRegionItem([0, (self.x[-1]*0.1)])
+
+        self.linearRegion = pg.LinearRegionItem([0, (self.x[-1] * 0.1)])
         self.linearRegion.setZValue(-10)
+
         self.p2.addItem(self.linearRegion)
+
         self.vBoxLayout2.addWidget(self.p1, stretch=6)
         self.vBoxLayout2.addWidget(self.p2, stretch=1)
+
+        self.linearRegion.sigRegionChanged.connect(self.updatePlot)
+        self.p1.sigXRangeChanged.connect(self.updateRegion)
+        self.updatePlot()
+    
+    def updatePlot(self):
+        self.p1.setXRange(*self.linearRegion.getRegion(), padding=0)
+
+    def updateRegion(self):
+        self.linearRegion.setRegion(self.p1.getViewBox().viewRange()[0])
 
     def writeFile(self, text):
         file = open('teste.log', 'a')
