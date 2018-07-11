@@ -1,6 +1,6 @@
 import sys
 from PyQt4 import QtGui, QtCore
-
+from math import floor
 import pyqtgraph as pg
 
 
@@ -9,6 +9,8 @@ class ApplicationWindow(QtGui.QMainWindow):
         QtGui.QMainWindow.__init__(self)
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
         self.setWindowTitle("Pelvware")
+
+        self.count = 0
 
         # Connecting to the FTPServer
 
@@ -37,25 +39,21 @@ class ApplicationWindow(QtGui.QMainWindow):
         self.hBoxLayout1.addLayout(self.vBoxLayout)
         self.hBoxLayout1.addLayout(self.vBoxLayout2)
         self.centralWidget.setLayout(self.hBoxLayout1)
-        self.setGeometry(300, 300, 1200, 900)
+        self.setGeometry(300, 300, 300, 300)
 
         pg.setConfigOption('background', 'w')
         pg.setConfigOption('foreground', 'r')
-        # pg.setConfigOption('leftButtonPan', False)
+        pg.setConfigOption('leftButtonPan', False)
 
-        self.btn = QtGui.QPushButton('Teste')
-        self.btn2 = QtGui.QPushButton('Teste')
+        self.btn = QtGui.QPushButton('Default')
+        # self.btn2 = QtGui.QPushButton('Teste')
+
+        self.btn.clicked.connect(self.buttonDefault)
 
         self.p1 = pg.PlotWidget()  # Main plot
         self.p2 = pg.PlotWidget()  # Scrolling Plot
 
-        self.vBoxLayout.addWidget(self.btn)
-        self.vBoxLayout.addWidget(self.btn2)
-        self.vBoxLayout.addStretch(1)
-        # self.vBoxLayout2.addWidget(self.p1)
-
-        self.p1.showGrid(x=True, y=True)
-        # self.p1.plot(x=self.x, y=self.y, pen='r')
+        self.p1.showGrid(x=False, y=True)
 
     def fileQuit(self):
         self.close()
@@ -79,37 +77,55 @@ class ApplicationWindow(QtGui.QMainWindow):
     def plotFile(self):
         file = open(self.fileName, 'r')
 
+        if self.count == 0:
+            self.vBoxLayout.addWidget(self.btn)
+            # self.vBoxLayout.addWidget(self.btn2)
+            self.vBoxLayout.addStretch(1)
+            self.setGeometry(300, 300, 1200, 800)
+            self.count += 1
+
+        self.p1.clear()
+        self.p2.clear()
+
         self.x = []
         self.y = []
         self.separateData(file)
 
         self.p1.setXRange(0, self.x[-1] * 0.1, padding=0)
+        self.p1.setYRange(0, 1000, padding=0)
 
         self.p1.plot(x=self.x, y=self.y, pen='r')
         self.p2.plot(x=self.x, y=self.y, pen='r')
 
-        self.linearRegion = pg.LinearRegionItem([0, (self.x[-1] * 0.1)])
-        self.linearRegion.setZValue(-10)
+        self.zoomLinearRegion = pg.LinearRegionItem([0, (self.x[-1] * 0.1)])
+        self.zoomLinearRegion.setZValue(-10)
 
-        self.p2.addItem(self.linearRegion)
+        self.p2.addItem(self.zoomLinearRegion)
 
         self.vBoxLayout2.addWidget(self.p1, stretch=6)
         self.vBoxLayout2.addWidget(self.p2, stretch=1)
 
-        self.linearRegion.sigRegionChanged.connect(self.updatePlot)
+        self.zoomLinearRegion.sigRegionChanged.connect(self.updatePlot)
         self.p1.sigXRangeChanged.connect(self.updateRegion)
         self.updatePlot()
-    
+
     def updatePlot(self):
-        self.p1.setXRange(*self.linearRegion.getRegion(), padding=0)
+        self.p1.setXRange(*self.zoomLinearRegion.getRegion(), padding=0)
 
     def updateRegion(self):
-        self.linearRegion.setRegion(self.p1.getViewBox().viewRange()[0])
+        self.zoomLinearRegion.setRegion(self.p1.getViewBox().viewRange()[0])
 
     def writeFile(self, text):
         file = open('teste.log', 'a')
         file.write(text)
         file.write('\n')
+
+    def buttonDefault(self):
+        region = self.zoomLinearRegion.getRegion()
+        new_region = [floor(region[0]), floor(region[0]) + (self.x[-1] * 0.1)]
+        self.zoomLinearRegion.setRegion(new_region)
+        self.p1.setYRange(0, 1000, padding=0)
+        self.updatePlot()
 
 
 qApp = QtGui.QApplication(sys.argv)
