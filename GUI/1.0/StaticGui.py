@@ -70,6 +70,8 @@ class ApplicationWindow(QtGui.QMainWindow):
         self.x = list(map(int, self.x))
         self.y = list(map(float, self.y))
 
+        self.y = map(lambda a: (((a * (3.2 / 1023)) / 10350) * 1000), self.y)
+
     def selectFile(self):
         self.fileName = QtGui.QFileDialog.getOpenFileName()
         self.plotFile()
@@ -92,7 +94,7 @@ class ApplicationWindow(QtGui.QMainWindow):
         self.separateData(file)
 
         self.p1.setXRange(0, self.x[-1] * 0.1, padding=0)
-        self.p1.setYRange(0, 1000, padding=0)
+        self.p1.setYRange(0, 0.4, padding=0)
 
         self.p1.plot(x=self.x, y=self.y, pen='r')
         self.p2.plot(x=self.x, y=self.y, pen='r')
@@ -124,7 +126,7 @@ class ApplicationWindow(QtGui.QMainWindow):
         region = self.zoomLinearRegion.getRegion()
         new_region = [floor(region[0]), floor(region[0]) + (self.x[-1] * 0.1)]
         self.zoomLinearRegion.setRegion(new_region)
-        self.p1.setYRange(0, 1000, padding=0)
+        self.p1.setYRange(0, 0.4, padding=0)
         self.updatePlot()
 
 
