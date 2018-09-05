@@ -39,7 +39,7 @@ def window():
 
 
     
-    fbox.addRow(QPushButton("Submit"), QPushButton("Cancel"))
+    fbox.addRow(QPushButton("Submeter"), QPushButton("Cancelar"))
 
     win.setLayout(fbox)
 
