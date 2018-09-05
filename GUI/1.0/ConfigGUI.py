@@ -23,7 +23,7 @@ def window():
     l4 = QLabel("Porta Serial")
     add3 = QComboBox()
     add3.addItems(serial_ports())
-
+    print(serial_ports())
     fbox = QFormLayout()
     vbox1 = QVBoxLayout()
     vbox2 = QVBoxLayout()
