@@ -2,10 +2,11 @@ import sys
 import time
 from PyQt4 import QtGui, QtCore
 from math import floor
-from threading import Thread
+from threading import Thread, Condition
 import pyqtgraph as pg
 import numpy as np
 import socket
+import select
 
 
 class ApplicationWindow(QtGui.QMainWindow):
@@ -14,7 +15,13 @@ class ApplicationWindow(QtGui.QMainWindow):
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
         self.setWindowTitle("Pelvware")
 
-        self.connected = 0        
+        self.connected = 0
+        self.controleTeste = 0
+
+        self.hasData = Condition()
+        self.hasProcData = Condition()
+
+        self.dataToBeProcessed = []
 
         self.fileName = ''
 
@@ -51,9 +58,12 @@ class ApplicationWindow(QtGui.QMainWindow):
 
         self.btn = QtGui.QPushButton('Default')
         self.btn2 = QtGui.QPushButton('Connect')
+        self.btn3 = QtGui.QPushButton('Pause')
 
         self.btn.clicked.connect(self.buttonDefault)
         self.btn2.clicked.connect(self.buttonConnect)
+        self.btn3.clicked.connect(self.buttonPause)
+        
 
         self.p1 = pg.PlotWidget()  # Main plot
         self.p2 = pg.PlotWidget()  # Scrolling Plot
@@ -62,8 +72,12 @@ class ApplicationWindow(QtGui.QMainWindow):
 
         self.vBoxLayout.addWidget(self.btn)
         self.vBoxLayout.addWidget(self.btn2)
+        self.vBoxLayout.addWidget(self.btn3)
         self.vBoxLayout.addStretch(1)
         self.setGeometry(300, 300, 1200, 800)
+
+        self.vBoxLayout2.addWidget(self.p1, stretch=6)
+        self.vBoxLayout2.addWidget(self.p2, stretch=1)
 
     def fileQuit(self):
         self.close()
@@ -105,8 +119,8 @@ class ApplicationWindow(QtGui.QMainWindow):
         self.p1.setClipToView(True)
         self.p2.setClipToView(True)
 
-        # self.x = []
-        # self.y = []
+        self.x = []
+        self.y = []
         self.separateData(file)
 
         self.p1.setXRange(0, self.x[-1] * 0.1, padding=0)
@@ -119,8 +133,8 @@ class ApplicationWindow(QtGui.QMainWindow):
 
         self.p2.addItem(self.zoomLinearRegion)
 
-        self.vBoxLayout2.addWidget(self.p1, stretch=6)
-        self.vBoxLayout2.addWidget(self.p2, stretch=1)
+        # self.vBoxLayout2.addWidget(self.p1, stretch=6)
+        # self.vBoxLayout2.addWidget(self.p2, stretch=1)
 
         self.zoomLinearRegion.sigRegionChanged.connect(self.updatePlot)
         self.p1.sigXRangeChanged.connect(self.updateRegion)
@@ -140,7 +154,8 @@ class ApplicationWindow(QtGui.QMainWindow):
             self.curve1.setData(self.x, self.y)
             self.curve2.setData(self.x, self.y)
 
-            self.zoomLinearRegion.setRegion([self.x[-1] - self.x[-1]*0.1, self.x[-1]])
+            self.zoomLinearRegion.setRegion(
+                [self.x[-1] - self.x[-1] * 0.1, self.x[-1]])
 
             self.updatePlot()
             # time.sleep(5)
@@ -149,7 +164,8 @@ class ApplicationWindow(QtGui.QMainWindow):
         self.p1.setXRange(*self.zoomLinearRegion.getRegion(), padding=0)
 
     def updateRegion(self):
-        self.zoomLinearRegion.setRegion(self.p1.getViewBox().viewRange()[0])
+        if self.controleTeste == 0:
+            self.zoomLinearRegion.setRegion(self.p1.getViewBox().viewRange()[0])
 
     def writeFile(self, text):
         file = open('teste.log', 'a')
@@ -163,58 +179,119 @@ class ApplicationWindow(QtGui.QMainWindow):
         self.p1.setYRange(0, 0.4, padding=0)
         self.updatePlot()
 
+    def buttonPause(self):
+        if self.controleTeste == 0:
+            self.controleTeste = 1
+
+        else:
+            self.controleTeste = 0
+
     def buttonConnect(self):
         if self.connected == 0:
             self.connected = 1
+            # self.controleTeste = 0
+            self.x = [0]
+            self.y = [0]
+            # self.x.append(0)
+            # self.y.append(0.0)
+            self.p1.clear()
+            self.p2.clear()
+
+            self.p1.setDownsampling(mode='peak')
+            self.p2.setDownsampling(mode='peak')
+
+            self.p1.setClipToView(True)
+            self.p2.setClipToView(True)
+
+            self.curve1 = self.p1.plot(x=self.x, y=self.y, pen='r')
+            self.curve2 = self.p2.plot(x=self.x, y=self.y, pen='r')
+            self.zoomLinearRegion = pg.LinearRegionItem(
+                [0, (0 * 0.1)])
+            self.zoomLinearRegion.setZValue(-10)
+
+            self.p2.addItem(self.zoomLinearRegion)
+
+            self.zoomLinearRegion.sigRegionChanged.connect(self.updatePlot)
+            self.p1.sigXRangeChanged.connect(self.updateRegion)
+
             rcvThread = Thread(target=self.udpThread)
+            processingThread = Thread(target=self.processDataThread)
+            pltThread = Thread(target=self.pltThread)
+
             rcvThread.start()
+            processingThread.start()
+            pltThread.start()
+
         else:
             print(self.connected)
             self.connected = 0
 
-        # self.p1.clear()
-        # self.p2.clear()
-
-        # self.p1.setDownsampling(mode='peak')
-        # self.p2.setDownsampling(mode='peak')
-
-        # self.p1.setClipToView(True)
-        # self.p2.setClipToView(True)
-
-        # self.dummy_value = 0
-        # self.time_dummy_value = 0.0
-
-        # self.y.append(self.time_dummy_value)
-        # self.x.append(self.dummy_value)
-
-        # self.curve1 = self.p1.plot(x=self.x, y=self.y, pen='r')
-        # self.curve2 = self.p2.plot(x=self.x, y=self.y, pen='r')
-        # self.zoomLinearRegion = pg.LinearRegionItem([0, (self.x[-1] * 0.1)])
-        # self.zoomLinearRegion.setZValue(-10)
-
-        # self.p2.addItem(self.zoomLinearRegion)
-
-        # self.vBoxLayout2.addWidget(self.p1, stretch=6)
-        # self.vBoxLayout2.addWidget(self.p2, stretch=1)
-
-        # self.zoomLinearRegion.sigRegionChanged.connect(self.updatePlot)
-        # self.p1.sigXRangeChanged.connect(self.updateRegion)
-
-        # plottingThread = Thread(target=self.updatePlots)
-        # plottingThread.start()
-
     def udpThread(self):
-        HOST = '192.168.0.28'
+        HOST = '10.7.116.8'
         PORT = 5000
         udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         orig = (HOST, PORT)
         udp.bind(orig)
+        udp.settimeout(2)
         while self.connected == 1:
-            msg, client = udp.recvfrom(20)
-            print(type(msg))
-            print(msg)
-            print(self.connected)
-        print("sai")
+            # ready = select.select()
+            try:
+                msg, client = udp.recvfrom(20)
+                self.hasData.acquire()
+                self.dataToBeProcessed.append(msg)
+                # print(self.dataToBeProcessed)
+                self.hasData.notify()
+                self.hasData.release()
+
+            except:
+                print("Timed Out")
+        udp.close()
+
+    def processDataThread(self):
+        while self.connected == 1:
+            # if self.connected == 1:
+            # print("Processando")
+            self.hasData.acquire()
+            self.hasProcData.acquire()
+            if not self.dataToBeProcessed:
+                self.hasData.wait()
+
+            data = self.dataToBeProcessed.pop()
+            a, b = data.split(';')
+            self.x.append(int(a))
+            self.y.append(float(b))
+            #print(self.x)
+            self.hasProcData.notify()
+            self.hasProcData.release()
+            self.hasData.release()
+
+    # needs to change from the dummy values to the udp data. #
+    def pltThread(self):
+        while self.connected == 1:
+            # if self.connected == 1:
+            # self.hasProcData.acquire()
+
+            # print("Teste")
+
+            # if not self.x and not self.y:
+            #     self.hasProcData.wait()
+
+            self.p1.setXRange(0, self.x[-1] * 0.1, padding=0)
+            self.p1.setYRange(0, 0.4, padding=0)
+
+            self.curve1.setData(self.x, self.y)
+            self.curve2.setData(self.x, self.y)
+
+            if self.controleTeste == 0:
+                self.zoomLinearRegion.setRegion(
+                    [self.x[-1] - self.x[-1] * 0.1, self.x[-1]])
+
+            self.updatePlot()
+
+            # self.hasProcData.release()
+
+            time.sleep(0.5)
+
 
 qApp = QtGui.QApplication(sys.argv)
 
