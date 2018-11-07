@@ -236,7 +236,7 @@ class ApplicationWindow(QtGui.QMainWindow):
 
             # timer = QtCore.QTimer()
             # timer.timeout.connect(connectionHealth)
-            # self.timer.start(1)
+            self.timer.start(1)
 
                 # if timer.isActive():
                 #     print("Rodou")
@@ -311,7 +311,6 @@ class ApplicationWindow(QtGui.QMainWindow):
             if not self.hasNew:
                 self.hasProcData.wait()
 
-            print(self.startTime)
             self.p1.setXRange(0, self.x[-1] * 0.1, padding=0)
             self.p1.setYRange(0, 1024, padding=0)
 
@@ -329,16 +328,16 @@ class ApplicationWindow(QtGui.QMainWindow):
             time.sleep(0.05)
 
     def connectionHealth(self):
-        if (self.startTime-time.time()) < 0.02:
+        if (time.time()-self.startTime) < 0.02:
             self.label2.setText('Muito Boa')
             self.label2.setStyleSheet('color: green')
-        elif (self.startTime-time.time()) < 0.1:
+        elif (time.time()-self.startTime) < 0.1:
             self.label2.setText('Boa')
             self.label2.setStyleSheet('color: green')
-        elif (self.startTime-time.time()) < 0.5:
+        elif (time.time()-self.startTime) < 0.5:
             self.label2.setText('Ruim')
             self.label2.setStyleSheet('color: yellow')
-        elif (self.startTime-time.time()) < 1:
+        elif (time.time()-self.startTime) < 1:
             self.label2.setText('Muito Ruim')
             self.label2.setStyleSheet('color: orange')
         else:
