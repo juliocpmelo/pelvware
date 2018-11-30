@@ -1,0 +1,45 @@
+LABCENTER PROTEUS TOOL INFORMATION FILE
+=======================================
+
+In case of difficulty, please e-mail support@labcenter.co.uk
+
+Tool set up for Proteus layout 'ProjetoPelvwarePCB1v3.pdsprj'.
+CADCAM generated at 18:57:55 on sexta-feira, 30 de novembro de 2018.
+
+File List
+---------
+Bottom Copper           : ProjetoPelvwarePCB1v3 - CADCAM Bottom Copper.GBR
+Bottom Solder Resist    : ProjetoPelvwarePCB1v3 - CADCAM Bottom Solder Resist.GBR
+Mechanical 1            : ProjetoPelvwarePCB1v3 - CADCAM Mechanical 1.GBR
+Drill                   : ProjetoPelvwarePCB1v3 - CADCAM Drill.DRL
+Netlist                 : ProjetoPelvwarePCB1v3 - CADCAM Netlist.IPC
+
+Photoplotter Setup
+------------------
+Format: RS274X, ASCII, 4.3, metric, absolute, eob=*, LZO
+Notes:  D=Diameter, S=Side, W=Width, H=Height, C=Chamfer, I=Index
+
+D10	CIRCLE  D=0.381mm                                                         DRAW 
+D11	CIRCLE  D=0.508mm                                                         DRAW 
+D12	CIRCLE  D=0.254mm                                                         DRAW 
+D13	CIRCLE  D=0.3048mm                                                        DRAW 
+D14	DIL     W=2.54mm              H=1.524mm             C=0.3048mm            FLASH
+D15	SQUARE  S=2.032mm                                                         FLASH
+D16	CIRCLE  D=1.778mm                                                         FLASH
+D17	PPAD    W=2.794mm             H=1.778mm             I=0                   FLASH
+D18	PPAD    W=2.286mm             H=2.286mm             I=1                   FLASH
+D19	PPAD    W=2.286mm             H=2.286mm             I=2                   FLASH
+D70	CIRCLE  D=2.032mm                                                         FLASH
+D71	CIRCLE  D=0.2032mm                                                        DRAW 
+
+NC Drill Setup
+--------------
+Format: Excellon, ASCII, 4.3, metric, absolute, eob=<CR><LF>, no zero suppression.
+Notes:  Tool sizes are diameters. Layer sets are in brackets - 0=TOP, 15=BOTTOM, 1-14=INNER.
+
+T01	1mm (0-15) Plated
+T02	1.016mm (0-15) Plated
+T03	0.762mm (0-15) Plated
+
+
+[END OF FILE]
