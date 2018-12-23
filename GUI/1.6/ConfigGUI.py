@@ -9,12 +9,16 @@ ser = None
 listWifi = None
 labelConected = None
 conected = False
+past_result = None
+
+
 
 def sendData(data):
     global ser
-    #data += "\r\n" 
+    #data += "\r\n"
     ser.flushInput()
-    ser.write( data.encode() )
+    ser.write(data.encode())
+
 
 def readData():
     # Definir aqui um tempo de TTL
@@ -24,23 +28,26 @@ def readData():
 
     return s1
 
+
 def Sync(value):
     #####################################################
     # Syncronization with Wemos Serial and Get Wifi List
     #####################################################
 
     ##############################
-    # DEBUG 
+    # DEBUG
     #print "Combobox Changed: "
     #print str( value.__str__() )
     global conected
     global ser
 
-    if not conected:
-        namePort = str( value.__str__() )
-        #print namePort
-        ser = serial.Serial( namePort , 115200)
+    print("Started Sync")
+    print(str(value.__str__()))
 
+    if not conected:
+        namePort = str(value.__str__())
+        #print namePort
+        ser = serial.Serial(namePort, 115200, timeout=5)
 
         print "ENVIANDO SERIAL SYNC"
         sendData("SerialSync")
@@ -57,12 +64,13 @@ def Sync(value):
             # Libera a lista de Wifis e Popula
             UpdateSSIDS()
 
-        else: 
+        else:
             print "Sync Error"
             # Limpa Lista e Desativa
             model = QStandardItemModel()
             listWifi.setModel(model)
             listWifi.setEnabled(False)
+
 
 def UpdateSSIDS():
 
@@ -85,12 +93,13 @@ def UpdateSSIDS():
             item = QStandardItem(i)
             model.appendRow(item)
 
+
 class RefreshComboBox(QObject):
     def eventFilter(self, filteredObj, event):
         if event.type() == QEvent.MouseButtonPress and filteredObj.count() >= 0:
             if not conected:
                 global ser
-                ser = None 
+                ser = None
                 filteredObj.blockSignals(True)
                 filteredObj.clear()
                 filteredObj.addItems(serial_ports())
@@ -98,28 +107,30 @@ class RefreshComboBox(QObject):
                 filteredObj.blockSignals(False)
         return QObject.eventFilter(self, filteredObj, event)
 
+
 class PasswordDialog(QWidget):
-    
     def __init__(self):
         super(PasswordDialog, self).__init__()
-        
+
         self.initUI()
-        
-    def initUI(self):      
+
+    def initUI(self):
 
         self.btn = QPushButton('Dialog', self)
         self.btn.move(20, 20)
         self.btn.clicked.connect(self.showDialog)
-        
+
         #self.setGeometry(300, 300, 300, 150)
         #self.setFixedSize(300,150)
-        
+
     def showDialog(self, title, message):
-        
-        text, ok = QInputDialog.getText(self, title, message, mode=QLineEdit.Password)
-        
-        if( ok and not(text.isEmpty()) ):
+
+        text, ok = QInputDialog.getText(
+            self, title, message, mode=QLineEdit.Password)
+
+        if (ok and not (text.isEmpty())):
             return text
+
 
 def requirePassword():
     ##################################################
@@ -128,7 +139,7 @@ def requirePassword():
     global conected
     global listWifi
     # gets the selected indexes in the 'QListView'
-    
+
     if not conected:
         selected_indexes = listWifi.selectedIndexes()
 
@@ -139,8 +150,9 @@ def requirePassword():
             ssid = selected_indexes[0].data().toString()
 
             janela = PasswordDialog()
-            senha = janela.showDialog('Password Required', 'Enter the network password:')
-            
+            senha = janela.showDialog('Password Required',
+                                      'Enter the network password:')
+
             print "SENHA"
             print senha
             # Verify spaces on the password
@@ -152,7 +164,7 @@ def requirePassword():
                 response = readData()
 
                 if response == "Connected":
-                    ip =  readData()
+                    ip = readData()
                     print response + " IP " + ip
                     conected = True
                     labelConected.setText("Connected: " + ip)
@@ -167,7 +179,7 @@ def requirePassword():
                 sendData("0")
                 response = readData()
                 print "QUE FOI ISSO"
-                print response 
+                print response
 
                 UpdateSSIDS()
                 conected = False
@@ -177,29 +189,30 @@ def window():
     global listWifi
     global labelConected
 
-
-    print("11111111111")
-
     # app = QApplication(sys.argv)
     win = QDialog()
     # win = QWidget()
 
-    l1 = QLabel("Select the COM/TTY Port: ")
-    add1 = QComboBox()
+    # l1 = QLabel("Select the COM/TTY Port: ")
+    # add1 = QComboBox()
 
-    labelConected = QLabel("Not Conected")  
+    labelConected = QLabel("Not Conected")
 
-    eventFilter = RefreshComboBox()
-    add1.installEventFilter( eventFilter )
-    add1.currentIndexChanged[str].connect( Sync )
+    # eventFilter = RefreshComboBox()
+    # add1.installEventFilter(eventFilter)
+    # add1.currentIndexChanged[str].connect(Sync)
+
+    checkSerialTimer = QTimer()
+    checkSerialTimer.timeout.connect(serial_ports)
+    checkSerialTimer.start(1)
 
     l2 = QLabel("Select the wireless network SSID:")
-    
+
     listWifi = QListView()
-    listWifi.setGeometry(QRect(10, 50, 231, 221))  
+    listWifi.setGeometry(QRect(10, 50, 231, 221))
 
     # entries = ['one','two', 'three']
-    
+
     #for i in entries:
     #    item = QStandardItem(i)
     #    model.appendRow(item)
@@ -209,8 +222,8 @@ def window():
     vbox2 = QVBoxLayout()
     vbox3 = QVBoxLayout()
 
-    vbox1.addWidget(add1)
-    fbox.addRow(l1, vbox1)
+    # vbox1.addWidget(add1)
+    # fbox.addRow(l1, vbox1)
 
     vbox2.addWidget(labelConected)
     fbox.addRow(vbox2)
@@ -219,7 +232,7 @@ def window():
     fbox.addRow(vbox3)
 
     buttonConect = QPushButton("Conectar")
-    buttonConect.clicked.connect( requirePassword )
+    buttonConect.clicked.connect(requirePassword)
     fbox.addRow(buttonConect)
 
     win.setLayout(fbox)
@@ -228,9 +241,12 @@ def window():
     # win.show()
     # sys.exit(app.exec_())
     win.exec_()
-    print("222222222222222222")
 
 def serial_ports():
+    global past_result
+
+    print (past_result)
+
     if sys.platform.startswith('win'):
         ports = ['COM%s' % (i + 1) for i in range(256)]
     elif sys.platform.startswith('linux') or sys.platform.startswith('cygwin'):
@@ -249,6 +265,9 @@ def serial_ports():
             result.append(port)
         except (OSError, serial.SerialException):
             pass
-    return result
-
-
+    # return result
+    if past_result == None or past_result == result:
+        past_result = result
+    elif len(list(set(result) - set(past_result))) >= 0:
+        print("Found the Port")
+        Sync(list(set(result) - set(past_result))[0])

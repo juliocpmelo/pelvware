@@ -20,6 +20,7 @@ class ApplicationWindow(QtGui.QMainWindow):
 
         self.hasData = Condition()
         self.hasProcData = Condition()
+        self.hasNew = False
 
         self.dataToBeProcessed = []
 
@@ -149,7 +150,7 @@ class ApplicationWindow(QtGui.QMainWindow):
             self.x.append(self.dummy_value)
 
             self.p1.setXRange(0, self.x[-1] * 0.1, padding=0)
-            self.p1.setYRange(0, 0.4, padding=0)
+            self.p1.setYRange(0, 1024, padding=0) ## Original should be 0.4 instead of 1024.
 
             self.curve1.setData(self.x, self.y)
             self.curve2.setData(self.x, self.y)
@@ -176,7 +177,7 @@ class ApplicationWindow(QtGui.QMainWindow):
         region = self.zoomLinearRegion.getRegion()
         new_region = [floor(region[0]), floor(region[0]) + (self.x[-1] * 0.1)]
         self.zoomLinearRegion.setRegion(new_region)
-        self.p1.setYRange(0, 0.4, padding=0)
+        self.p1.setYRange(0, 1024, padding=0) # Original should be 0.4 instead of 1024
         self.updatePlot()
 
     def buttonPause(self):
@@ -227,7 +228,7 @@ class ApplicationWindow(QtGui.QMainWindow):
             self.connected = 0
 
     def udpThread(self):
-        HOST = '10.7.116.8'
+        HOST = '192.168.43.125'
         PORT = 5000
         udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         orig = (HOST, PORT)
@@ -261,6 +262,7 @@ class ApplicationWindow(QtGui.QMainWindow):
             self.x.append(int(a))
             self.y.append(float(b))
             #print(self.x)
+            self.hasNew = True
             self.hasProcData.notify()
             self.hasProcData.release()
             self.hasData.release()
@@ -269,15 +271,19 @@ class ApplicationWindow(QtGui.QMainWindow):
     def pltThread(self):
         while self.connected == 1:
             # if self.connected == 1:
-            # self.hasProcData.acquire()
+            self.hasProcData.acquire()
 
-            # print("Teste")
+            print("Teste")
 
             # if not self.x and not self.y:
             #     self.hasProcData.wait()
 
+            if not self.hasNew:
+                self.hasProcData.wait()
+
+
             self.p1.setXRange(0, self.x[-1] * 0.1, padding=0)
-            self.p1.setYRange(0, 0.4, padding=0)
+            self.p1.setYRange(0, 1024, padding=0)
 
             self.curve1.setData(self.x, self.y)
             self.curve2.setData(self.x, self.y)
@@ -287,10 +293,10 @@ class ApplicationWindow(QtGui.QMainWindow):
                     [self.x[-1] - self.x[-1] * 0.1, self.x[-1]])
 
             self.updatePlot()
+            self.hasNew = False
+            self.hasProcData.release()
 
-            # self.hasProcData.release()
-
-            time.sleep(0.5)
+            time.sleep(0.05)
 
 
 qApp = QtGui.QApplication(sys.argv)
