@@ -9,12 +9,13 @@ import socket
 import select
 import ConfigGUI
 
-
 class ApplicationWindow(QtGui.QMainWindow):
     def __init__(self):
         QtGui.QMainWindow.__init__(self)
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
         self.setWindowTitle("Pelvware")
+
+        self.rate = 0.4
 
         self.timer1 = QtCore.QTimer()
         self.timerRcv = QtCore.QTimer()
@@ -203,7 +204,7 @@ class ApplicationWindow(QtGui.QMainWindow):
             self.x.append(self.dummy_value)
 
             self.p1.setXRange(0, self.x[-1] * 0.1, padding=0)
-            self.p1.setYRange(0, 1024, padding=0) ## Original should be 0.4 instead of 1024.
+            self.p1.setYRange(0, self.rate, padding=0) ## Original should be 0.4 instead of 1024.
 
             self.curve1.setData(self.x, self.y)
             self.curve2.setData(self.x, self.y)
@@ -258,7 +259,7 @@ class ApplicationWindow(QtGui.QMainWindow):
             self.zoomLinearRegion.setRegion(new_region)
         
         self.updatePlot()
-        self.p1.setYRange(0, 0.4, padding=0) # Original should be 0.4 instead of 1024
+        self.p1.setYRange(0, self.rate, padding=0) # Original should be 0.4 instead of 1024
         
 
     def buttonPause(self):
@@ -388,7 +389,7 @@ class ApplicationWindow(QtGui.QMainWindow):
             self.startTime = time.time()
             data = self.dataToBeProcessed.pop()
             a, b = data.split(';')
-            self.x.append(int(a))
+            self.x.append(int(a) * 1000)
             self.y.append(float(b))
             #print(self.x)
             self.hasNew = True
@@ -406,7 +407,7 @@ class ApplicationWindow(QtGui.QMainWindow):
 
             if (len(self.x) == len(self.y)) and (len(self.y) != 0) and not self.controleTeste:
                 self.p1.setXRange(0, self.x[-1] * 0.1, padding=0)
-                self.p1.setYRange(0, 1024, padding=0)
+                self.p1.setYRange(0, self.rate, padding=0)
 
                 try:
                     self.curve1.setData(self.x, self.y)
