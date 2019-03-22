@@ -16,8 +16,15 @@ class ApplicationWindow(QtGui.QMainWindow):
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
         self.setWindowTitle("Pelvware")
 
-        self.timer = QtCore.QTimer()
-        self.timer.timeout.connect(self.connectionHealth)        
+        self.timer1 = QtCore.QTimer()
+        self.timerRcv = QtCore.QTimer()
+        self.timerProc = QtCore.QTimer()
+        self.timerPlt = QtCore.QTimer()
+
+        self.timer1.timeout.connect(self.connectionHealth)        
+        self.timerRcv.timeout.connect(self.udpThread)        
+        self.timerProc.timeout.connect(self.processDataThread)        
+        self.timerPlt.timeout.connect(self.pltThread)        
 
         # Threads Controllers and Condiotions.
         self.connected = 0
@@ -32,10 +39,24 @@ class ApplicationWindow(QtGui.QMainWindow):
         # File to be Plotted Statically.
         self.fileName = ''
 
+        # Info on the current Mode, if it's the RT we also have the acquisition state.
+        # readingMode (true = RT, false = FTP) always starts with false.
+        # rtState (true = Active, false = Inactive) always starts inactive.
+        self.readingMode = False; 
+        self.rtState = False
+
+
         # Network Configuration of Host and Port.
         # self.HOST = socket.gethostbyname(socket.gethostname()) ## estranhamente esta funcao deixou de funcionar na minha vm por isso a comentei.
-        self.HOST = '192.168.0.43'
+        self.HOST = '192.168.0.24'
         self.PORT = 5000
+        self.udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.orig = (self.HOST, self.PORT)
+
+        # The following IP and port are from the Pelvware, in  the future we should keep this data in a file conatining the info on 
+        # many devices
+        self.pelvIP = ''
+        self.pelvPORT = 7500
 
         # Data to be plotted or processed.
         self.dataToBeProcessed = []
@@ -72,23 +93,38 @@ class ApplicationWindow(QtGui.QMainWindow):
 
         self.label1 = QtGui.QLabel()
         self.label2 = QtGui.QLabel()
+        self.label3 = QtGui.QLabel()
+        self.label4 = QtGui.QLabel()
+
+        self.label3.setText('Modo Atual')
+        self.label4.setText('FTP')
+        self.label4.setStyleSheet('color : blue')
 
         self.btn = QtGui.QPushButton('Default')
         self.btn2 = QtGui.QPushButton('Connect')
-        self.btn3 = QtGui.QPushButton('Pause')
+        self.btn3 = QtGui.QPushButton('Pause Plot')
+        self.btn4 = QtGui.QPushButton('Change Modes')
+        self.btn5 = None
+        # This Button should only be active when the probe is the RT Mode
+        # self.btn5 = QtGui.QPushButton('Pause Data Acquisition') 
 
         self.btn.clicked.connect(self.buttonDefault)
         self.btn2.clicked.connect(self.buttonConnect)
         self.btn3.clicked.connect(self.buttonPause)
+        self.btn4.clicked.connect(self.buttonChange)
+        # self.btn5.clicked.connect(self.buttonPauseRT)
 
         self.p1 = pg.PlotWidget()  # Main plot
         self.p2 = pg.PlotWidget()  # Scrolling Plot
 
         self.p1.showGrid(x=False, y=True)
 
+        self.vBoxLayout.addWidget(self.label3)
+        self.vBoxLayout.addWidget(self.label4)
         self.vBoxLayout.addWidget(self.btn)
         self.vBoxLayout.addWidget(self.btn2)
         self.vBoxLayout.addWidget(self.btn3)
+        self.vBoxLayout.addWidget(self.btn4)
         self.vBoxLayout.addWidget(self.label1)
         self.vBoxLayout.addWidget(self.label2)
         self.vBoxLayout.addStretch(1)
@@ -204,6 +240,36 @@ class ApplicationWindow(QtGui.QMainWindow):
         else:
             self.controleTeste = 0
 
+    def buttonChange(self):
+        if not self.rtState:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.sendto('changeMode', (self.pelvIP, self.pelvPORT))
+            self.readingMode = not self.readingMode
+            if self.readingMode:
+                self.btn5 = QtGui.QPushButton('Pause Data Acquisition') 
+                self.btn5.clicked.connect(self.buttonPauseRT)
+                self.vBoxLayout.addWidget(self.btn5)
+                self.label4.setText("RT")
+                self.label4.setStyleSheet('color : green')
+
+            else:
+                self.btn5.deleteLater()
+                self.vBoxLayout.removeWidget(self.btn5)
+                self.label4.setText("FTP")
+                self.label4.setStyleSheet('color : blue')
+
+
+
+    def buttonPauseRT(self):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        if self.rtState:
+            sock.sendto('pauseRT', (self.pelvIP, self.pelvPORT))
+        else:
+            sock.sendto('startRT', (self.pelvIP, self.pelvPORT))
+
+        self.rtState = not self.rtState
+
+
     def buttonConnect(self):
         if self.connected == 0:
             self.connected = 1
@@ -236,8 +302,11 @@ class ApplicationWindow(QtGui.QMainWindow):
 
             # timer = QtCore.QTimer()
             # timer.timeout.connect(connectionHealth)
-            self.timer.start(1)
-
+            self.timer1.start(1)
+            # self.timerRcv.start(0.01)
+            # self.timerProc.start(0.021)
+            # self.timerPlt.start(0.05)
+            
                 # if timer.isActive():
                 #     print("Rodou")
 
@@ -257,15 +326,13 @@ class ApplicationWindow(QtGui.QMainWindow):
 
     def udpThread(self):
         print(self.HOST)
-        udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        orig = (self.HOST, self.PORT)
-        udp.bind(orig)
-        udp.settimeout(2)
+        self.udp.bind(self.orig)
+        self.udp.settimeout(2)
         while self.connected == 1:
             # ready = select.select()
             # self.startTime = time.time()
             try:
-                msg, client = udp.recvfrom(20)
+                msg, client = self.udp.recvfrom(20)
                 self.hasData.acquire()
                 self.dataToBeProcessed.append(msg)
                 # print(self.dataToBeProcessed)
@@ -297,7 +364,6 @@ class ApplicationWindow(QtGui.QMainWindow):
             self.hasData.release()
             time.sleep(0.021)
 
-    # needs to change from the dummy values to the udp data. #
     def pltThread(self):
         while self.connected == 1:
             # if self.connected == 1:
@@ -311,21 +377,27 @@ class ApplicationWindow(QtGui.QMainWindow):
             if not self.hasNew:
                 self.hasProcData.wait()
 
-            self.p1.setXRange(0, self.x[-1] * 0.1, padding=0)
-            self.p1.setYRange(0, 1024, padding=0)
+            if (len(self.x) == len(self.y)) and (len(self.y) != 0):
+                self.p1.setXRange(0, self.x[-1] * 0.1, padding=0)
+                self.p1.setYRange(0, 1024, padding=0)
 
-            self.curve1.setData(self.x, self.y)
-            self.curve2.setData(self.x, self.y)
+                try:
+                    self.curve1.setData(self.x, self.y)
+                    self.curve2.setData(self.x, self.y)
 
-            if self.controleTeste == 0:
-                self.zoomLinearRegion.setRegion(
-                    [self.x[-1] - self.x[-1] * 0.1, self.x[-1]])
+                except:
+                    print("Algo deu errado!")
+                if self.controleTeste == 0:
+                    self.zoomLinearRegion.setRegion(
+                        [self.x[-1] - self.x[-1] * 0.1, self.x[-1]])
 
-            self.updatePlot()
-            self.hasNew = False
-            self.hasProcData.release()
+                self.updatePlot()
+                self.hasNew = False
+                self.hasProcData.release()
 
-            time.sleep(0.05)
+                time.sleep(0.05)
+            else:
+                print("Tamanhos diferentes!")
 
     def connectionHealth(self):
         if (time.time()-self.startTime) < 0.02:
@@ -349,6 +421,9 @@ class ApplicationWindow(QtGui.QMainWindow):
         configWindow = ConfigGUI.window()
         # configWindow.show()
         # configWindow.exec_()
+
+    # def updateModeLabel():
+    #     if 
 
 qApp = QtGui.QApplication(sys.argv)
 
