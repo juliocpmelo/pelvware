@@ -28,7 +28,7 @@ class ApplicationWindow(QtGui.QMainWindow):
 
         # Threads Controllers and Condiotions.
         self.connected = 0
-        self.controleTeste = 0
+        self.controleTeste = 0 ## Controller of the pause function. 0 = running, and 1 = paused
 
         self.hasData = Condition()
         self.hasProcData = Condition()
@@ -218,7 +218,8 @@ class ApplicationWindow(QtGui.QMainWindow):
         self.p1.setXRange(*self.zoomLinearRegion.getRegion(), padding=0)
 
     def updateRegion(self):
-        if self.controleTeste == 0:
+        if self.controleTeste:
+            print(self.controleTeste)
             self.zoomLinearRegion.setRegion(self.p1.getViewBox().viewRange()[0])
 
     def writeFile(self, text):
@@ -226,19 +227,47 @@ class ApplicationWindow(QtGui.QMainWindow):
         file.write(text)
         file.write('\n')
 
+    def removeScrollingPlot(self):
+        self.p2.deleteLater()
+        self.vBoxLayout.removeWidget(self.p2)
+
+    def addScrollingPlot(self):
+        self.p2 = pg.PlotWidget()
+        self.vBoxLayout2.addWidget(self.p2, stretch=1)
+
+        if self.readingMode:
+            self.p2.setDownsampling(mode='peak')
+
+            self.p2.setClipToView(True)
+
+            self.curve2 = self.p2.plot(x=self.x, y=self.y, pen='r')
+            self.zoomLinearRegion = pg.LinearRegionItem([0, (self.x[-1] * 0.1)])
+            self.zoomLinearRegion.setZValue(-10)
+
+            self.p2.addItem(self.zoomLinearRegion)
+
+            self.zoomLinearRegion.sigRegionChanged.connect(self.updatePlot)
+            self.p1.sigXRangeChanged.connect(self.updateRegion)
+            self.updatePlot()
+
+
     def buttonDefault(self):
-        region = self.zoomLinearRegion.getRegion()
-        new_region = [floor(region[0]), floor(region[0]) + (self.x[-1] * 0.1)]
-        self.zoomLinearRegion.setRegion(new_region)
-        self.p1.setYRange(0, 1024, padding=0) # Original should be 0.4 instead of 1024
+        if not self.readingMode:
+            region = self.zoomLinearRegion.getRegion()
+            new_region = [floor(region[0]), floor(region[0]) + (self.x[-1] * 0.1)]
+            self.zoomLinearRegion.setRegion(new_region)
+        
         self.updatePlot()
+        self.p1.setYRange(0, 0.4, padding=0) # Original should be 0.4 instead of 1024
+        
 
     def buttonPause(self):
-        if self.controleTeste == 0:
-            self.controleTeste = 1
-
+        self.controleTeste = not self.controleTeste
+        if not self.controleTeste:
+            self.removeScrollingPlot()
         else:
-            self.controleTeste = 0
+            self.addScrollingPlot()
+
 
     def buttonChange(self):
         if not self.rtState:
@@ -249,6 +278,7 @@ class ApplicationWindow(QtGui.QMainWindow):
                 self.btn5 = QtGui.QPushButton('Pause Data Acquisition') 
                 self.btn5.clicked.connect(self.buttonPauseRT)
                 self.vBoxLayout.addWidget(self.btn5)
+                self.removeScrollingPlot()
                 self.label4.setText("RT")
                 self.label4.setStyleSheet('color : green')
 
@@ -257,6 +287,7 @@ class ApplicationWindow(QtGui.QMainWindow):
                 self.vBoxLayout.removeWidget(self.btn5)
                 self.label4.setText("FTP")
                 self.label4.setStyleSheet('color : blue')
+                self.addScrollingPlot()
 
 
 
@@ -264,8 +295,10 @@ class ApplicationWindow(QtGui.QMainWindow):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         if self.rtState:
             sock.sendto('pauseRT', (self.pelvIP, self.pelvPORT))
+            self.addScrollingPlot()
         else:
             sock.sendto('startRT', (self.pelvIP, self.pelvPORT))
+            self.removeScrollingPlot()
 
         self.rtState = not self.rtState
 
@@ -279,24 +312,24 @@ class ApplicationWindow(QtGui.QMainWindow):
             # self.x.append(0)
             # self.y.append(0.0)
             self.p1.clear()
-            self.p2.clear()
+            # self.p2.clear()
 
             self.p1.setDownsampling(mode='peak')
-            self.p2.setDownsampling(mode='peak')
+            # self.p2.setDownsampling(mode='peak')
 
             self.p1.setClipToView(True)
-            self.p2.setClipToView(True)
+            # self.p2.setClipToView(True)
 
             self.curve1 = self.p1.plot(x=self.x, y=self.y, pen='r')
-            self.curve2 = self.p2.plot(x=self.x, y=self.y, pen='r')
-            self.zoomLinearRegion = pg.LinearRegionItem(
-                [0, (0 * 0.1)])
-            self.zoomLinearRegion.setZValue(-10)
+            # self.curve2 = self.p2.plot(x=self.x, y=self.y, pen='r')
+            # self.zoomLinearRegion = pg.LinearRegionItem(
+            #     [0, (0 * 0.1)])
+            # self.zoomLinearRegion.setZValue(-10)
 
-            self.p2.addItem(self.zoomLinearRegion)
+            # self.p2.addItem(self.zoomLinearRegion)
 
-            self.zoomLinearRegion.sigRegionChanged.connect(self.updatePlot)
-            self.p1.sigXRangeChanged.connect(self.updateRegion)
+            # self.zoomLinearRegion.sigRegionChanged.connect(self.updatePlot)
+            # self.p1.sigXRangeChanged.connect(self.updateRegion)
 
             self.label1.setText('Status da Conexao')
 
@@ -341,7 +374,7 @@ class ApplicationWindow(QtGui.QMainWindow):
 
             except:
                 print("Timed Out")
-        udp.close()
+        self.udp.close()
 
     def processDataThread(self):
         while self.connected == 1:
@@ -366,32 +399,26 @@ class ApplicationWindow(QtGui.QMainWindow):
 
     def pltThread(self):
         while self.connected == 1:
-            # if self.connected == 1:
             self.hasProcData.acquire()
-
-            # print("Teste")
-
-            # if not self.x and not self.y:
-            #     self.hasProcData.wait()
 
             if not self.hasNew:
                 self.hasProcData.wait()
 
-            if (len(self.x) == len(self.y)) and (len(self.y) != 0):
+            if (len(self.x) == len(self.y)) and (len(self.y) != 0) and not self.controleTeste:
                 self.p1.setXRange(0, self.x[-1] * 0.1, padding=0)
                 self.p1.setYRange(0, 1024, padding=0)
 
                 try:
                     self.curve1.setData(self.x, self.y)
-                    self.curve2.setData(self.x, self.y)
+                    # self.curve2.setData(self.x, self.y)
 
                 except:
                     print("Algo deu errado!")
-                if self.controleTeste == 0:
-                    self.zoomLinearRegion.setRegion(
-                        [self.x[-1] - self.x[-1] * 0.1, self.x[-1]])
+                # if self.controleTeste == 0:
+                #     self.zoomLinearRegion.setRegion(
+                #         [self.x[-1] - self.x[-1] * 0.1, self.x[-1]])
 
-                self.updatePlot()
+                # self.updatePlot()
                 self.hasNew = False
                 self.hasProcData.release()
 
