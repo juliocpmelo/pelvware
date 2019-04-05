@@ -10,12 +10,15 @@ listWifi = None
 labelConected = None
 conected = False
 past_result = None
+checkSerialTimer = QTimer()
+
 
 
 
 def sendData(data):
     global ser
     #data += "\r\n"
+    print("Data: " + data)
     ser.flushInput()
     ser.write(data.encode())
 
@@ -159,6 +162,7 @@ def requirePassword():
             if senha != None:
                 #print "SSID: " + ssid + " Senha: " + senha
                 connect = ssid + ";" + senha
+                print(connect)
                 print "ENVIANDO SSID + SENHA"
                 sendData(str(connect))
                 response = readData()
@@ -188,6 +192,7 @@ def requirePassword():
 def window():
     global listWifi
     global labelConected
+    global checkSerialTimer
 
     # app = QApplication(sys.argv)
     win = QDialog()
@@ -202,7 +207,7 @@ def window():
     # add1.installEventFilter(eventFilter)
     # add1.currentIndexChanged[str].connect(Sync)
 
-    checkSerialTimer = QTimer()
+    # checkSerialTimer = QTimer()
     checkSerialTimer.timeout.connect(serial_ports)
     checkSerialTimer.start(1)
 
@@ -244,6 +249,7 @@ def window():
 
 def serial_ports():
     global past_result
+    global checkSerialTimer
 
     print (past_result)
 
@@ -266,8 +272,10 @@ def serial_ports():
         except (OSError, serial.SerialException):
             pass
     # return result
-    if past_result == None or past_result == result:
+    if past_result == None or len(list(set(result) - set(past_result))) <= 0:
         past_result = result
-    elif len(list(set(result) - set(past_result))) >= 0:
+    elif len(list(set(result) - set(past_result))) > 0:
         print("Found the Port")
+        print(len(list(set(result) - set(past_result))))
+        checkSerialTimer.stop()
         Sync(list(set(result) - set(past_result))[0])
