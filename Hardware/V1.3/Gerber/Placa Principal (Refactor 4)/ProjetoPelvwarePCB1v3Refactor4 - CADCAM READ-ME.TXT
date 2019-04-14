@@ -1,0 +1,34 @@
+LABCENTER PROTEUS TOOL INFORMATION FILE
+=======================================
+
+In case of difficulty, please e-mail support@labcenter.co.uk
+
+Tool set up for Proteus layout 'ProjetoPelvwarePCB1v3Refactor4.pdsprj'.
+CADCAM generated at 21:00:26 on quarta-feira, 12 de dezembro de 2018.
+
+File List
+---------
+Bottom Copper           : ProjetoPelvwarePCB1v3Refactor4 - CADCAM Bottom Copper.GBR
+Mechanical 1            : ProjetoPelvwarePCB1v3Refactor4 - CADCAM Mechanical 1.GBR
+Drill, Plated, 1-16     : ProjetoPelvwarePCB1v3Refactor4 - CADCAM Drill L1 L16 Plated.GBR
+Netlist                 : ProjetoPelvwarePCB1v3Refactor4 - CADCAM Netlist.IPC
+
+Photoplotter Setup
+------------------
+Format: X2, ASCII, 4.3, metric, absolute, eob=*, LZO
+Notes:  D=Diameter, S=Side, W=Width, H=Height, C=Chamfer, I=Index
+
+D10	CIRCLE  D=0.508mm                                                         DRAW  Conductor
+D11	CIRCLE  D=0.3048mm                                                        DRAW  Conductor
+D12	CIRCLE  D=0.254mm                                                         DRAW  Conductor
+D13	CIRCLE  D=0.381mm                                                         DRAW  Conductor
+D14	DIL     W=2.54mm              H=1.524mm             C=0.3048mm            FLASH ComponentPad
+D15	SQUARE  S=2.032mm                                                         FLASH ComponentPad
+D16	CIRCLE  D=1.778mm                                                         FLASH ComponentPad
+D17	CIRCLE  D=0.2032mm                                                        DRAW  Slot
+D18	CIRCLE  D=1mm                                                             FLASH ComponentDrill
+D19	CIRCLE  D=1.016mm                                                         FLASH ComponentDrill
+D70	CIRCLE  D=0.762mm                                                         FLASH ComponentDrill
+
+
+[END OF FILE]
