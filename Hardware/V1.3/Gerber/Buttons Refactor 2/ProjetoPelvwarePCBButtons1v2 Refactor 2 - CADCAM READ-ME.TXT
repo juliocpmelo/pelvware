@@ -1,0 +1,36 @@
+LABCENTER PROTEUS TOOL INFORMATION FILE
+=======================================
+
+In case of difficulty, please e-mail support@labcenter.co.uk
+
+Tool set up for Proteus layout 'ProjetoPelvwarePCBButtons1v2 Refactor 2.pdsprj'.
+CADCAM generated at 15:35:39 on terça-feira, 7 de maio de 2019.
+
+File List
+---------
+Bottom Copper           : ProjetoPelvwarePCBButtons1v2 Refactor 2 - CADCAM Bottom Copper.GBR
+Mechanical 1            : ProjetoPelvwarePCBButtons1v2 Refactor 2 - CADCAM Mechanical 1.GBR
+Drill                   : ProjetoPelvwarePCBButtons1v2 Refactor 2 - CADCAM Drill.DRL
+Netlist                 : ProjetoPelvwarePCBButtons1v2 Refactor 2 - CADCAM Netlist.IPC
+
+Photoplotter Setup
+------------------
+Format: RS274X, ASCII, 4.3, metric, absolute, eob=*, LZO
+Notes:  D=Diameter, S=Side, W=Width, H=Height, C=Chamfer, I=Index
+
+D10	CIRCLE  D=0.508mm                                                         DRAW 
+D11	CIRCLE  D=0.254mm                                                         DRAW 
+D12	SQUARE  S=2.032mm                                                         FLASH
+D13	DIL     W=1.524mm             H=2.54mm              C=0.3048mm            FLASH
+D14	CIRCLE  D=0.2032mm                                                        DRAW 
+
+NC Drill Setup
+--------------
+Format: Excellon, ASCII, 4.3, metric, absolute, eob=<CR><LF>, no zero suppression.
+Notes:  Tool sizes are diameters. Layer sets are in brackets - 0=TOP, 15=BOTTOM, 1-14=INNER.
+
+T01	1.016mm (0-15) Plated
+T02	1mm (0-15) Plated
+
+
+[END OF FILE]
