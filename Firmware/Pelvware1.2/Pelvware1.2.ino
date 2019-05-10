@@ -7,10 +7,15 @@
 const int buttonPin =  D0; // the number of the Button pin
 //const int ledPin =  D4;    // the number of the POWER-ON LED pin
 
-const int ledV1Pin =  D5;    // the number of the POWER-ON LED pin
-const int ledV2Pin =  D6;    // the number of the POWER-ON LED pin
-const int ledV3Pin =  D7;    // the number of the POWER-ON LED pin
+const int ledV1Pin =  D6;    // the number of the POWER-ON LED pin
+const int ledV2Pin =  D7;    // the number of the POWER-ON LED pin
+const int ledV3Pin =  D5;    // the number of the POWER-ON LED pin
 
+// Default parameters for test mode => 0.1 * sin(10x) + 0.1
+double amplitude = 0.1;	// Default amplitude -0.1 to 0.1 // Shifted above zero generating 0 to 0.2 values.
+double period = 10;     // Defaul Period 10.
+
+boolean testMode = false;
 
 /***
   ----------------------------------------------------------------------------------------------------------------------------
@@ -31,7 +36,7 @@ WiFiUDP udp;
 WiFiUDP udpRcv;
 char rcvMsg[UDP_TX_PACKET_MAX_SIZE];
 String convertedMsg;
-char* guiIP = "10.0.0.1";
+char* guiIP = "192.168.43.121";
 
 /***
   ----------------------------------------------------------------------------------------------------------------------------
@@ -39,14 +44,70 @@ char* guiIP = "10.0.0.1";
   ----------------------------------------------------------------------------------------------------------------------------
 ***/
 
+// TODO: Function to check testMode file from SPIFFS, and configure testMode if is enabled.
+boolean checkTestMode()
+{  
+  return false;
+}
+
+// Function to set testMode state on file in SPIFFS.
+boolean setTestMode(boolean value)
+{
+  boolean success = false;
+  
+  File f = SPIFFS.open("/testMode", "w");
+  String name = f.name();
+  
+  if(!f) {
+    Serial.println("File open failed");
+    return false;
+  }
+  else{
+    if(value){
+      f.print('1');
+    }
+    else{
+      f.print('0');
+    }
+    
+    success = true;
+  }
+    
+  testMode = value;
+  
+  f.close();
+  
+  return success;
+}
+
 boolean syncSerial()
 {
     String data = waitAndGetData();
-
+    
     if( data.equals("SerialSync") )
     {
       Serial.println("SyncOK");
       return true;
+    }
+    if( data.equals("EnableTestMode") )
+    {
+      
+      if( setTestMode(true) )
+        Serial.println("TestModeEnabled");
+      else
+        Serial.println("TestModeEnableError");
+        
+      return false;
+    }
+    if( data.equals("DisableTestMode") )
+    {
+      
+      if( setTestMode(false) )
+        Serial.println("TestModeDisabled");
+      else
+        Serial.println("TestModeDisableError");
+      
+      return false;
     }
     else
     {
@@ -98,6 +159,7 @@ boolean getWifiList()
   }
 }
 
+// TODO: Implement other function waitAndGetData without timeout to use in other serial functions.
 String waitAndGetData()
 {
     String texto = "";
@@ -243,15 +305,47 @@ void setup()
 {
   Serial.begin(115200);
 
-  udpRcv.begin(5050);
+  udpRcv.begin(7500);
 
   pinMode(buttonPin, INPUT);
   //pinMode(ledPin, OUTPUT);
   pinMode(ledV1Pin, OUTPUT);
   pinMode(ledV2Pin, OUTPUT);
   pinMode(ledV3Pin, OUTPUT);
-  Serial.println("IP Address 1");
-  Serial.println(WiFi.localIP());
+  //Serial.println("IP Address 1");
+  //Serial.println(WiFi.localIP());
+
+  // Initializing FTPServer and SPIFFS.
+  if(SPIFFS.begin()){
+    ftpSrv.begin("admin", "admin"); // Username and password.
+    
+    //Read File data
+    File f = SPIFFS.open("/testMode", "r");
+    
+    if (!f) {
+      Serial.println("file open failed");
+    }
+    else
+    {
+      char value = (char) f.read();
+
+      if( value == '1' )
+      {
+        //Serial.println("ATTENTION: Test Mode Enabled");
+        testMode = true;
+      }
+      else if(value == '0')
+      {
+        //Serial.println("ATTENTION: Test Mode Disabled");
+      }
+      else
+      {
+        //Serial.println("ATTENTION: Test Mode File Note Created");
+      }
+      
+      f.close();  //Close file
+    }
+  }
 
   /*
   * Code used for turning the ESP into a WiFi Hotspot (Access Point).
@@ -295,11 +389,6 @@ void setup()
 
   //Serial.println(myIP);
 
-  // Initializing FTPServer and SPIFFS.
-  if(SPIFFS.begin()){
-    ftpSrv.begin("admin", "admin"); // Username and password.
-  }
-
   digitalWrite(ledV1Pin, LOW);
   digitalWrite(ledV2Pin, LOW);
   digitalWrite(ledV3Pin, LOW);
@@ -317,6 +406,7 @@ void readMyoware(){
   int analogIN = 0;
   const long interval = 5;           // interval of each reading (milliseconds)
   boolean first = true;
+  int degree = 0;
 
   unsigned long currentMillis, previousMillis = 0, elapsedMillis = 0;
 
@@ -342,6 +432,8 @@ void readMyoware(){
         yield();
       }
 
+      rtPause = true;
+
       delay(1000);
 
       break;
@@ -350,7 +442,26 @@ void readMyoware(){
     currentMillis = millis();
 
     if (currentMillis - previousMillis >= interval){
-      analogIN = analogRead(A0);
+      
+      if( testMode )
+      {  
+        double rad = degree * (PI/180);
+        analogIN = ((amplitude * sin(rad*period)) + amplitude );
+        
+        if(degree < 360)
+        {
+          degree++;
+        }
+        else
+        {
+          degree = 0;
+        }
+        
+      }
+      else
+      {
+        analogIN = analogRead(A0);
+      }
 
   /*
    * This part writes the EMG values that come from
@@ -468,6 +579,8 @@ void loop()
       yield();
     }
 
+    rtPause = false;
+    
     delay(1000);
 
     readMyoware();
