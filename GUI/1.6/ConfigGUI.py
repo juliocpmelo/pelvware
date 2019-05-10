@@ -2,6 +2,8 @@ import sys
 import glob
 import serial
 import serial.tools.list_ports
+import time
+import os
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 
@@ -49,30 +51,34 @@ def Sync(value):
 
     if not conected:
         namePort = str(value.__str__())
-        #print namePort
+        print namePort
         ser = serial.Serial(namePort, 115200, timeout=5)
+        response = readData()
 
-        print "ENVIANDO SERIAL SYNC"
-        sendData("SerialSync")
+        if response == "StartConfiguration":
+            sendData("ConfigurationStarted")
+            time.sleep(5)
+            print "ENVIANDO SERIAL SYNC"
+            sendData("SerialSync")
 
-        dataRead = readData()
+            dataRead = readData()
 
-        ########## DEBUG ###########
-        #print len(dataRead)
-        #print len("SyncOK")
-        print "OSHE"
-        print dataRead
-        if dataRead == "SyncOK":
-            print "Synchronized"
-            # Libera a lista de Wifis e Popula
-            UpdateSSIDS()
+            ########## DEBUG ###########
+            #print len(dataRead)
+            #print len("SyncOK")
+            print "OSHE"
+            print dataRead
+            if dataRead == "SyncOK":
+                print "Synchronized"
+                # Libera a lista de Wifis e Popula
+                UpdateSSIDS()
 
-        else:
-            print "Sync Error"
-            # Limpa Lista e Desativa
-            model = QStandardItemModel()
-            listWifi.setModel(model)
-            listWifi.setEnabled(False)
+            else:
+                print "Sync Error"
+                # Limpa Lista e Desativa
+                model = QStandardItemModel()
+                listWifi.setModel(model)
+                listWifi.setEnabled(False)
 
 
 def UpdateSSIDS():
@@ -134,6 +140,16 @@ class PasswordDialog(QWidget):
         if (ok and not (text.isEmpty())):
             return text
 
+def writeIpFile(ip):
+    path = os.getcwd()
+    access_rights = 0o755
+    try:
+        os.mkdir(path+'/bin', access_rights)
+    except OSError:
+        print("A pasta ja existe")
+    else:
+        f = open(path+"/bin/.pelvIp.file", "w+")
+        f.write(ip)
 
 def requirePassword():
     ##################################################
@@ -165,6 +181,7 @@ def requirePassword():
                 print(connect)
                 print "ENVIANDO SSID + SENHA"
                 sendData(str(connect))
+                time.sleep(10)
                 response = readData()
 
                 if response == "Connected":
@@ -172,6 +189,7 @@ def requirePassword():
                     print response + " IP " + ip
                     conected = True
                     labelConected.setText("Connected: " + ip)
+                    writeIpFile(ip)
                     listWifi.setEnabled(False)
                 else:
                     print "Erro Conexao"
@@ -250,6 +268,7 @@ def window():
 def serial_ports():
     global past_result
     global checkSerialTimer
+    global ser
 
     print (past_result)
 
@@ -278,4 +297,12 @@ def serial_ports():
         print("Found the Port")
         print(len(list(set(result) - set(past_result))))
         checkSerialTimer.stop()
+        # i = 0
+        # while i < 20:
+        #     ser = serial.Serial(namePort, 115200, timeout=5)
+        #     sendData(str("StartConfiguration"))
+        #     response = waitAndGetData()
+        #     if response == "ConfigurationStarted":
+        #         i = 30
+        #     i = i + 1
         Sync(list(set(result) - set(past_result))[0])

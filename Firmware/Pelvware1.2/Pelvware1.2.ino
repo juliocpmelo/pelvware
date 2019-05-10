@@ -205,11 +205,15 @@ bool pingSerial(){
   for (int i = 0; i < 20; i++)
   {
     Serial.println("StartConfiguration");
+    delay(5);
     texto = waitAndGetData();
-    if(texto = "ConfigurationStarted"){
+    if(texto == "ConfigurationStarted"){
+      Serial.println("ConfigurationStarted");
       return true;
     }
   }
+  Serial.println("Ops");
+
   return false;
 }
 /*
@@ -246,6 +250,8 @@ void setup()
   pinMode(ledV1Pin, OUTPUT);
   pinMode(ledV2Pin, OUTPUT);
   pinMode(ledV3Pin, OUTPUT);
+  Serial.println("IP Address 1");
+  Serial.println(WiFi.localIP());
 
   /*
   * Code used for turning the ESP into a WiFi Hotspot (Access Point).
@@ -255,7 +261,7 @@ void setup()
 
   IPAddress myIP = WiFi.softAPIP();*/
 
-  if(pingSerial){
+  if(pingSerial()){
     boolean SyncSerial = false;
 
     boolean configSuccess = false;
@@ -297,6 +303,8 @@ void setup()
   digitalWrite(ledV1Pin, LOW);
   digitalWrite(ledV2Pin, LOW);
   digitalWrite(ledV3Pin, LOW);
+  Serial.println("IP Address 1");
+  Serial.println(WiFi.localIP());
 }
 
 void readMyoware(){
