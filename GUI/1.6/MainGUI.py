@@ -6,6 +6,7 @@ from threading import Thread, Condition
 import pyqtgraph as pg
 import numpy as np
 import socket
+import os
 import select
 import ConfigGUI
 
@@ -49,9 +50,10 @@ class ApplicationWindow(QtGui.QMainWindow):
 
         # Network Configuration of Host and Port.
         # self.HOST = socket.gethostbyname(socket.gethostname()) ## estranhamente esta funcao deixou de funcionar na minha vm por isso a comentei.
-        self.HOST = '192.168.0.15'
+        self.HOST = ''
         self.PORT = 5000
         self.udp = 0
+        self.discoverIp()
         self.orig = (self.HOST, self.PORT)
 
         # The following IP and port are from the Pelvware, in  the future we should keep this data in a file containing the info on
@@ -138,6 +140,12 @@ class ApplicationWindow(QtGui.QMainWindow):
         self.btn3.setEnabled(False)
         self.btn2.setEnabled(False)
 
+    def discoverIp(self):
+        gw = os.popen("ip -4 route show default").read().split()
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect((gw[2], 0))
+        self.HOST = s.getsockname()[0]
+        s.close()
 
     def fileQuit(self):
         self.close()
