@@ -1,5 +1,5 @@
 #include <ESP8266WiFi.h>
-#include <WiFiClient.h> 
+#include <WiFiClient.h>
 #include <WiFiUdp.h>
 #include "FS.h"
 #include <ESP8266FtpServer.h>
@@ -10,8 +10,6 @@ const int buttonPin =  D0; // the number of the Button pin
 const int ledV1Pin =  D5;    // the number of the POWER-ON LED pin
 const int ledV2Pin =  D6;    // the number of the POWER-ON LED pin
 const int ledV3Pin =  D7;    // the number of the POWER-ON LED pin
-
-#include <ESP8266WiFi.h>
 
 
 /***
@@ -31,7 +29,8 @@ bool pelvMode = false; // Identifies if it's in the Real Time mode. (True = RT M
 bool rtPause = true;
 WiFiUDP udp;
 WiFiUDP udpRcv;
-String rcvMsg = "";
+char rcvMsg[UDP_TX_PACKET_MAX_SIZE];
+String convertedMsg;
 char* guiIP = "10.0.0.1";
 
 /***
@@ -43,7 +42,7 @@ char* guiIP = "10.0.0.1";
 boolean syncSerial()
 {
     String data = waitAndGetData();
-    
+
     if( data.equals("SerialSync") )
     {
       Serial.println("SyncOK");
@@ -61,7 +60,7 @@ String getSSIDS()
 {
   int numberOfNetworks = WiFi.scanNetworks();
   String listWifi = "";
-  
+
   for(int i = 0; i < numberOfNetworks; i++){
 
       if( i == numberOfNetworks-1 )
@@ -82,7 +81,7 @@ boolean getWifiList()
   if( data.equals("GetWifiList") )
   {
       Serial.println( getSSIDS() );
-      
+
       return true;
   }
   else if( data.equals("SerialSync") )
@@ -104,6 +103,8 @@ String waitAndGetData()
     String texto = "";
     int count = 0;
 
+    delay(10);
+
     while( count < 3 ){
       if (!Serial.available() > 0)
       {
@@ -114,7 +115,7 @@ String waitAndGetData()
         count = 3;
       }
     }
-    
+
     while( Serial.available() > 0)
     {
         texto += char(Serial.read());
@@ -127,11 +128,13 @@ boolean getSSIDAndConnect()
 {
   String texto = "";
   int i21 = 0;
-  
+
   while( (!Serial.available() > 0) );
 
   boolean contains = false;
-  
+
+  delay(10);
+
   while( Serial.available() > 0)
   {
       char buffr = char( Serial.read() );
@@ -150,14 +153,12 @@ boolean getSSIDAndConnect()
     boolean completeSSID = false;
     String ssid = "", password = "";
 
-    Serial.println("OI");
-    
     for(int i = 0; i < texto.length(); i++)
     {
       if( !completeSSID )
       {
-        if( texto[i] == ';' )  
-        { 
+        if( texto[i] == ';' )
+        {
           completeSSID = true;
         }
         else
@@ -168,25 +169,25 @@ boolean getSSIDAndConnect()
           password += texto[i];
       }
     }
-    
+
     WiFi.mode(WIFI_STA);
     WiFi.begin( ssid.c_str(), password.c_str() );
-    
+
     int counterTimeOut = 0;
-    
-    while (WiFi.status() != WL_CONNECTED) 
-    { 
+
+    while (WiFi.status() != WL_CONNECTED)
+    {
       if( counterTimeOut == 50 )
       {
         Serial.println("ConectionTimeOut");
         Serial.flush();
         return false;
       }
-      
+
       delay(500);
       counterTimeOut++;
     }
-    
+
     Serial.println("Connected");
     Serial.println(WiFi.localIP());
     return true;
@@ -216,7 +217,7 @@ void connect(){
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
 
-  while (WiFi.status() != WL_CONNECTED) 
+  while (WiFi.status() != WL_CONNECTED)
   {
     delay(500);
     Serial.print(".");
@@ -237,7 +238,7 @@ void connect(){
 void setup()
 {
   Serial.begin(115200);
-  
+
   udpRcv.begin(5050);
 
   pinMode(buttonPin, INPUT);
@@ -248,7 +249,7 @@ void setup()
 
   /*
   * Code used for turning the ESP into a WiFi Hotspot (Access Point).
-  * 
+  *
   */
   /*WiFi.softAP(ssid, password);
 
@@ -256,15 +257,15 @@ void setup()
 
   if(pingSerial){
     boolean SyncSerial = false;
-  
+
     boolean configSuccess = false;
 
     while( !configSuccess )
     {
       while( !syncSerial() );
-      
+
       boolean result = false;
-    
+
       do
       {
         result = getWifiList();
@@ -278,7 +279,7 @@ void setup()
           else
             result = false;
         }
-        
+
       }while( !result );
     }
   }
@@ -287,12 +288,12 @@ void setup()
   }
 
   //Serial.println(myIP);
-  
+
   // Initializing FTPServer and SPIFFS.
   if(SPIFFS.begin()){
     ftpSrv.begin("admin", "admin"); // Username and password.
   }
-  
+
   digitalWrite(ledV1Pin, LOW);
   digitalWrite(ledV2Pin, LOW);
   digitalWrite(ledV3Pin, LOW);
@@ -304,47 +305,47 @@ void readMyoware(){
    * Format File system before write new log file.
    */
   //SPIFFS.format();
- 
+
   int analogIN = 0;
   const long interval = 5;           // interval of each reading (milliseconds)
   boolean first = true;
 
   unsigned long currentMillis, previousMillis = 0, elapsedMillis = 0;
-  
+
   //digitalWrite(ledPin, HIGH);
-  
-  /* 
+
+  /*
    *  Start read A0, signals of myoware.
    */
-  
+
   Serial.println("Starting Read Myoware...");
   //delay(1000);
-  
+
   /*Serial.println("Reading Analog IN, A0");
   Serial.println("Time;Value");*/
-  
-  while( true ){   
-    
+
+  while( true ){
+
     checkUDPMessage();
 
     if( digitalRead(buttonPin) == HIGH || rtPause == true ){
-      
+
       while(digitalRead(buttonPin)){
         yield();
       }
 
       delay(1000);
-      
+
       break;
     }
-    
+
     currentMillis = millis();
-    
+
     if (currentMillis - previousMillis >= interval){
       analogIN = analogRead(A0);
-      
+
   /*
-   * This part writes the EMG values that come from 
+   * This part writes the EMG values that come from
    * the myoware and the time in millisecond on file system.
    */
       if(pelvMode==false){
@@ -353,25 +354,25 @@ void readMyoware(){
         f.close();
         f = SPIFFS.open("/teste", "a");
         String name = f.name();
-        
+
         if(!f) {
           Serial.println("File open failed");
         }
         else{
-          
+
           if( first ){
             first = false;
           }
           else
             f.println("");
-          
+
           f.print(elapsedMillis);
           f.print(";");
           f.print(analogIN);
         }
         f.close();
       }
-      else 
+      else
       { if (WiFi.status() == WL_CONNECTED)
         {
           String msg = String(analogIN);
@@ -405,66 +406,69 @@ void readMyoware(){
         digitalWrite(ledV2Pin, LOW);
         digitalWrite(ledV3Pin, LOW);
       }
-      
-      
-      /* 
+
+
+      /*
        *  save the last time you read A0
        */
       previousMillis = currentMillis;
       elapsedMillis += interval;
     }
-    
+
     yield();
   }
-  
-  Serial.println("Stoping Read Myoware...");
+
+  Serial.println("Stopping Read Myoware...");
   Serial.println();
   //delay(1000);
-  
+
 }
 
 void checkUDPMessage(){
-  if(udpRcv.parsePacket() > 0){
-      rcvMsg = "";
-      while(udpRcv.available() > 0){
-        char z = udp.read();
-        rcvMsg =+ z;
-      }
-      if (rcvMsg == "startRT")
-      {
-        rtPause == false;
-      }
-      else if(rcvMsg == "pauseRT")
-      {
-        rtPause = true;
-      }
-      else if(rcvMsg == "changeMode"){
-        pelvMode = !pelvMode;
-      }
+  int packetSize = udpRcv.parsePacket() > 0;
+  convertedMsg = "";
+  if(packetSize){
+    udpRcv.read(rcvMsg, UDP_TX_PACKET_MAX_SIZE);
+    Serial.println("Recebi:");
+    Serial.println(rcvMsg);
+    convertedMsg = String(rcvMsg);
+    memset(rcvMsg, 0, UDP_TX_PACKET_MAX_SIZE);
+  }
+  if (convertedMsg == "startRT")
+  {
+    rtPause == false;
+    Serial.println("RT Started");
+  }
+  else if(convertedMsg == "pauseRT")
+  {
+    rtPause = true;
+    Serial.println("RT Paused");
+  }
+  else if(convertedMsg == "changeMode"){
+    pelvMode = !pelvMode;
+    Serial.println("Mode Changed");
   }
 }
 
-void loop() 
+void loop()
 {
   checkUDPMessage();
-  
+
   if( digitalRead(buttonPin) == HIGH || rtPause == false)
   {
     while(digitalRead(buttonPin)){
       yield();
     }
-    
+
     delay(1000);
-    
+
     readMyoware();
   }
-  
+
   //digitalWrite(ledPin, LOW);
   digitalWrite(ledV1Pin, LOW);
   digitalWrite(ledV2Pin, LOW);
   digitalWrite(ledV3Pin, HIGH);
-  
+
   ftpSrv.handleFTP();
 }
-
-
