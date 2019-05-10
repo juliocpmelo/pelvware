@@ -175,7 +175,7 @@ def requirePassword():
                     listWifi.setEnabled(False)
                 else:
                     print "Erro Conexao"
-                    print response
+                    print "Error Message: " + response
                     UpdateSSIDS()
                     conected = False
             else:

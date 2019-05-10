@@ -22,14 +22,14 @@ class ApplicationWindow(QtGui.QMainWindow):
         self.timerProc = QtCore.QTimer()
         self.timerPlt = QtCore.QTimer()
 
-        self.timer1.timeout.connect(self.connectionHealth)        
-        self.timerRcv.timeout.connect(self.udpThread)        
-        self.timerProc.timeout.connect(self.processDataThread)        
-        self.timerPlt.timeout.connect(self.pltThread)        
+        self.timer1.timeout.connect(self.connectionHealth)
+        self.timerRcv.timeout.connect(self.udpThread)
+        self.timerProc.timeout.connect(self.processDataThread)
+        self.timerPlt.timeout.connect(self.pltThread)
 
         # Threads Controllers and Condiotions.
         self.connected = 0
-        self.controleTeste = 0 ## Controller of the pause function. 0 = running, and 1 = paused
+        self.controleTeste = False ## Controller of the pause function. 0 = running, and 1 = paused
 
         self.hasData = Condition()
         self.hasProcData = Condition()
@@ -43,20 +43,20 @@ class ApplicationWindow(QtGui.QMainWindow):
         # Info on the current Mode, if it's the RT we also have the acquisition state.
         # readingMode (true = RT, false = FTP) always starts with false.
         # rtState (true = Active, false = Inactive) always starts inactive.
-        self.readingMode = False; 
+        self.readingMode = False;
         self.rtState = False
 
 
         # Network Configuration of Host and Port.
         # self.HOST = socket.gethostbyname(socket.gethostname()) ## estranhamente esta funcao deixou de funcionar na minha vm por isso a comentei.
-        self.HOST = '192.168.0.24'
+        self.HOST = '192.168.0.15'
         self.PORT = 5000
-        self.udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.udp = 0
         self.orig = (self.HOST, self.PORT)
 
-        # The following IP and port are from the Pelvware, in  the future we should keep this data in a file conatining the info on 
+        # The following IP and port are from the Pelvware, in  the future we should keep this data in a file containing the info on
         # many devices
-        self.pelvIP = ''
+        self.pelvIP = '192.168.0.17'
         self.pelvPORT = 7500
 
         # Data to be plotted or processed.
@@ -107,7 +107,7 @@ class ApplicationWindow(QtGui.QMainWindow):
         self.btn4 = QtGui.QPushButton('Change Modes')
         self.btn5 = None
         # This Button should only be active when the probe is the RT Mode
-        # self.btn5 = QtGui.QPushButton('Pause Data Acquisition') 
+        # self.btn5 = QtGui.QPushButton('Pause Data Acquisition')
 
         self.btn.clicked.connect(self.buttonDefault)
         self.btn2.clicked.connect(self.buttonConnect)
@@ -122,10 +122,10 @@ class ApplicationWindow(QtGui.QMainWindow):
 
         self.vBoxLayout.addWidget(self.label3)
         self.vBoxLayout.addWidget(self.label4)
-        self.vBoxLayout.addWidget(self.btn)
+        self.vBoxLayout.addWidget(self.btn4)
         self.vBoxLayout.addWidget(self.btn2)
         self.vBoxLayout.addWidget(self.btn3)
-        self.vBoxLayout.addWidget(self.btn4)
+        self.vBoxLayout.addWidget(self.btn)
         self.vBoxLayout.addWidget(self.label1)
         self.vBoxLayout.addWidget(self.label2)
         self.vBoxLayout.addStretch(1)
@@ -133,6 +133,11 @@ class ApplicationWindow(QtGui.QMainWindow):
 
         self.vBoxLayout2.addWidget(self.p1, stretch=6)
         self.vBoxLayout2.addWidget(self.p2, stretch=1)
+
+        self.btn.setEnabled(False)
+        self.btn3.setEnabled(False)
+        self.btn2.setEnabled(False)
+
 
     def fileQuit(self):
         self.close()
@@ -242,7 +247,8 @@ class ApplicationWindow(QtGui.QMainWindow):
             self.p2.setClipToView(True)
 
             self.curve2 = self.p2.plot(x=self.x, y=self.y, pen='r')
-            self.zoomLinearRegion = pg.LinearRegionItem([0, (self.x[-1] * 0.1)])
+            # self.zoomLinearRegion = pg.LinearRegionItem([0, (self.x[-1] * 0.1)])
+            self.zoomLinearRegion = pg.LinearRegionItem([0, 2])
             self.zoomLinearRegion.setZValue(-10)
 
             self.p2.addItem(self.zoomLinearRegion)
@@ -257,38 +263,50 @@ class ApplicationWindow(QtGui.QMainWindow):
             region = self.zoomLinearRegion.getRegion()
             new_region = [floor(region[0]), floor(region[0]) + (self.x[-1] * 0.1)]
             self.zoomLinearRegion.setRegion(new_region)
-        
+
         self.updatePlot()
         self.p1.setYRange(0, self.rate, padding=0) # Original should be 0.4 instead of 1024
-        
+
 
     def buttonPause(self):
         self.controleTeste = not self.controleTeste
         if not self.controleTeste:
+            self.btn.setEnabled(False)
             self.removeScrollingPlot()
         else:
+            self.btn.setDisabled(False)
             self.addScrollingPlot()
 
 
     def buttonChange(self):
-        if not self.rtState:
+        if not self.readingMode:
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             sock.sendto('changeMode', (self.pelvIP, self.pelvPORT))
+            sock.close()
             self.readingMode = not self.readingMode
-            if self.readingMode:
-                self.btn5 = QtGui.QPushButton('Pause Data Acquisition') 
-                self.btn5.clicked.connect(self.buttonPauseRT)
-                self.vBoxLayout.addWidget(self.btn5)
-                self.removeScrollingPlot()
-                self.label4.setText("RT")
-                self.label4.setStyleSheet('color : green')
+            # self.rtState = not self.rtState
+            self.btn5 = QtGui.QPushButton('Pause Data Acquisition')
+            self.btn5.clicked.connect(self.buttonPauseRT)
+            self.btn2.setDisabled(False)
+            self.vBoxLayout.addWidget(self.btn5)
+            self.removeScrollingPlot()
+            self.label4.setText("RT")
+            self.label4.setStyleSheet('color : green')
 
-            else:
-                self.btn5.deleteLater()
-                self.vBoxLayout.removeWidget(self.btn5)
-                self.label4.setText("FTP")
-                self.label4.setStyleSheet('color : blue')
-                self.addScrollingPlot()
+        else:
+            self.btn5.deleteLater()
+            self.connected = 1
+            self.buttonConnect()
+            self.btn2.setEnabled(False)
+            self.readingMode = not self.readingMode
+            self.vBoxLayout.removeWidget(self.btn5)
+            self.label4.setText("FTP")
+            self.label4.setStyleSheet('color : blue')
+            try:
+                self.removeScrollingPlot()
+            except:
+                print("Grafico inexistente")
+            self.addScrollingPlot()
 
 
 
@@ -307,6 +325,7 @@ class ApplicationWindow(QtGui.QMainWindow):
     def buttonConnect(self):
         if self.connected == 0:
             self.connected = 1
+            self.btn3.setDisabled(False)
             # self.controleTeste = 0
             self.x = [0]
             self.y = [0]
@@ -340,7 +359,7 @@ class ApplicationWindow(QtGui.QMainWindow):
             # self.timerRcv.start(0.01)
             # self.timerProc.start(0.021)
             # self.timerPlt.start(0.05)
-            
+
                 # if timer.isActive():
                 #     print("Rodou")
 
@@ -355,11 +374,20 @@ class ApplicationWindow(QtGui.QMainWindow):
             # thread.start()
 
         else:
-            print(self.connected)
+            print(self.controleTeste)
+            print("AHAH")
+            # self.controleTeste = not self.controleTeste
+            # try:
+            #     self.buttonPause()
+            # except:
+            #     print("Grafico despausado")
+            self.btn.setEnabled(False)
+            self.btn3.setEnabled(False)
             self.connected = 0
 
     def udpThread(self):
         print(self.HOST)
+        self.udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.udp.bind(self.orig)
         self.udp.settimeout(2)
         while self.connected == 1:
@@ -376,6 +404,8 @@ class ApplicationWindow(QtGui.QMainWindow):
             except:
                 print("Timed Out")
         self.udp.close()
+        print("udp closing ")
+
 
     def processDataThread(self):
         while self.connected == 1:
@@ -451,7 +481,7 @@ class ApplicationWindow(QtGui.QMainWindow):
         # configWindow.exec_()
 
     # def updateModeLabel():
-    #     if 
+    #     if
 
 qApp = QtGui.QApplication(sys.argv)
 
