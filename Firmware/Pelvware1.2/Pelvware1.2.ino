@@ -7,9 +7,11 @@
 const int buttonPin = D0; // the number of the Button pin
 //const int ledPin =  D4;    // the number of the POWER-ON LED pin
 
+// Led red (D5) not working in this board.
+
 const int ledV1Pin =  D6;    // the number of the POWER-ON LED pin
-const int ledV2Pin =  D7;    // the number of the POWER-ON LED pin
-const int ledV3Pin =  D5;    // the number of the POWER-ON LED pin
+const int ledV2Pin =  D5;    // the number of the POWER-ON LED pin
+const int ledV3Pin =  D7;    // the number of the POWER-ON LED pin
 
 // Default parameters for test mode => 0.1 * sin(10x) + 0.1
 double amplitude = 0.1;	// Default amplitude -0.1 to 0.1 // Shifted above zero generating 0 to 0.2 values.
@@ -102,7 +104,7 @@ boolean getWifiSettings()
     String settings = "";
     
     while(f.available()){
-        settings += f.read();
+        settings += char(f.read());
     }
 
     f.close();  //Close file
@@ -519,11 +521,13 @@ void setup()
     {
       if( !wifiConnect() )
       {
+        Serial.println("Deu Errado o wifiConnect...");
         ESP.restart();
       }
     }
     else
     {
+        Serial.println("Deu Errado o getWifiSettings...");
         ESP.restart();
     }
   }
