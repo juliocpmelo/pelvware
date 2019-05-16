@@ -4,7 +4,7 @@
 #include "FS.h"
 #include <ESP8266FtpServer.h>
 
-const int buttonPin =  D0; // the number of the Button pin
+const int buttonPin = D0; // the number of the Button pin
 //const int ledPin =  D4;    // the number of the POWER-ON LED pin
 
 const int ledV1Pin =  D6;    // the number of the POWER-ON LED pin
@@ -36,13 +36,158 @@ WiFiUDP udp;
 WiFiUDP udpRcv;
 char rcvMsg[UDP_TX_PACKET_MAX_SIZE];
 String convertedMsg;
-char* guiIP = "192.168.43.121";
+
+
+// Configurations of wireless network and server (GUI).
+String guiIP        = "";
+String WIFIssid     = "";
+String WIFIpassword = "";
 
 /***
   ----------------------------------------------------------------------------------------------------------------------------
   Start of Functions used to configure the Wi-fi connection of the board.
   ----------------------------------------------------------------------------------------------------------------------------
 ***/
+
+/** Function to connect on Wi-fi using the settings variables previous declared: WIFIssid and WIFIpassword.
+ *  @return  true: Connect successful.
+ *          false: Could not connect.
+ */
+boolean wifiConnect()
+{
+  WiFi.mode(WIFI_STA);
+
+  /*Serial.print("SSID: ");
+  Serial.println(WIFIssid);
+  Serial.print("Pass: ");
+  Serial.println(WIFIpassword);*/
+  
+  WiFi.begin( WIFIssid.c_str(), WIFIpassword.c_str() );
+
+  int counterTimeOut = 0;
+
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    if( counterTimeOut == 50 )
+    {
+      Serial.println("ConectionTimeOut");
+      Serial.flush();
+      return false;
+    }
+
+    delay(500);
+    counterTimeOut++;
+  }
+    
+  Serial.println("Connected");
+  Serial.println(WiFi.localIP());
+  return true;
+}
+
+/** Function to get Wi-fi settings of the SPIFFS, and set the value on variables WIFIssid, WIFIpassword and guiIP.
+ *  @return  true: Everything is ok in the file read.
+ *          false: Can't open the file with settings or can't set on variables.
+ */
+boolean getWifiSettings()
+{
+  //Read File data
+  File f = SPIFFS.open("/wifiSettings", "r");
+  
+  if (!f) {
+    Serial.println("Failed to Open Wireless Settings !");
+    return false;
+  }
+  else
+  { 
+    String settings = "";
+    
+    while(f.available()){
+        settings += f.read();
+    }
+
+    f.close();  //Close file
+    
+    /*Serial.print("Wifi Settings: ");
+    Serial.println(settings);*/
+    
+    return setWifiSettings(settings);
+  }
+}
+
+/** Function to separe Wi-fi settings from a String and set the value on variables WIFIssid, WIFIpassword and guiIP.
+ *  @return  true: Everything is ok in the String.
+ *          false: The String contains few or many separators.
+ */
+boolean setWifiSettings(String settings)
+{
+  String temp = "";
+  int countParts = 0;
+
+  /*Serial.print("Settings: ");
+  Serial.println(settings);*/
+
+  for(int i = 0; i < settings.length() ; i++)
+  {
+    if( settings[i] == ';' || i == settings.length()-1 )
+    {        
+      /*Serial.print("i: ");
+      Serial.print(i);
+      Serial.print("Settings - 1: ");
+      Serial.println(settings.length()-1);*/
+      
+      switch(countParts)
+      {
+        case 0:
+          WIFIssid = temp;
+        break;
+
+        case 1:
+           WIFIpassword = temp;
+        break;
+
+        case 2:
+           temp += settings[i];
+           guiIP = temp;
+        break;
+      } 
+
+      temp = "";
+      countParts++;
+    }
+    else
+    {
+      temp += settings[i];
+    }
+  }
+
+  if( countParts != 3 )
+    return false;
+  else
+    return true;
+}
+
+/** Function to save the values of setting wifi variables (WIFIssid, WIFIpassword and guiIP) in a file with the SPIFFS.
+ *  @return  true: Everything is ok in the file write.
+ *          false: The file can't be write.
+ */
+boolean saveWifiSettings()
+{
+  File f = SPIFFS.open("/wifiSettings", "w");
+  
+  if(!f) {
+    Serial.println("Failed to Save Wireless Settings !");
+    return false;
+  }
+  else{
+    String wifiSettings = WIFIssid + ';' + WIFIpassword + ';' + guiIP;
+    f.print(wifiSettings);
+    
+    f.close();
+  }
+  
+  
+  return true;
+}
 
 // TODO: Function to check testMode file from SPIFFS, and configure testMode if is enabled.
 boolean checkTestMode()
@@ -71,11 +216,12 @@ boolean setTestMode(boolean value)
     }
     
     success = true;
+    
+    f.close();
   }
     
   testMode = value;
   
-  f.close();
   
   return success;
 }
@@ -159,8 +305,24 @@ boolean getWifiList()
   }
 }
 
-// TODO: Implement other function waitAndGetData without timeout to use in other serial functions.
+// Wait until get data from serial.
 String waitAndGetData()
+{
+    String texto = "";
+    
+    while( (!Serial.available() > 0) );
+    
+    while( Serial.available() > 0)
+    {
+        texto += char(Serial.read());
+        delay(10);
+    }
+
+    return texto;
+}
+
+// Try get data from serial, non blocking.
+String tryGetData()
 {
     String texto = "";
     int count = 0;
@@ -188,71 +350,50 @@ String waitAndGetData()
 
 boolean getSSIDAndConnect()
 {
-  String texto = "";
+  String wifiSettings = "";
   int i21 = 0;
 
   while( (!Serial.available() > 0) );
 
-  boolean contains = false;
+  int contains = 0;
 
   delay(10);
 
   while( Serial.available() > 0)
   {
       char buffr = char( Serial.read() );
-      texto += buffr;
+      wifiSettings += buffr;
       if(buffr == ';')
-        contains = true;
+        contains++;
   }
 
-  if( texto.equals("SerialSync") )
+  if( wifiSettings.equals("SerialSync") )
   {
     Serial.println("SyncOK");
     return false;
   }
-  else if( contains )
+  else if( contains == 2 )
   {
-    boolean completeSSID = false;
-    String ssid = "", password = "";
-
-    for(int i = 0; i < texto.length(); i++)
+    if( setWifiSettings(wifiSettings) )
     {
-      if( !completeSSID )
+      if( wifiConnect() )
       {
-        if( texto[i] == ';' )
-        {
-          completeSSID = true;
-        }
-        else
-          ssid += texto[i];
+        saveWifiSettings();
+        return true;
       }
       else
       {
-          password += texto[i];
-      }
-    }
-
-    WiFi.mode(WIFI_STA);
-    WiFi.begin( ssid.c_str(), password.c_str() );
-
-    int counterTimeOut = 0;
-
-    while (WiFi.status() != WL_CONNECTED)
-    {
-      if( counterTimeOut == 50 )
-      {
-        Serial.println("ConectionTimeOut");
+        Serial.println("ConnectionError");  // Can be used with a diferent message.
         Serial.flush();
         return false;
       }
-
-      delay(500);
-      counterTimeOut++;
     }
-
-    Serial.println("Connected");
-    Serial.println(WiFi.localIP());
-    return true;
+    else
+    {
+      Serial.println("SSIDFormatError");  // Can be used with a diferent message.
+      Serial.flush();
+      return false;
+    }
   }
   else
   {
@@ -268,32 +409,17 @@ bool pingSerial(){
   {
     Serial.println("StartConfiguration");
     delay(5);
-    texto = waitAndGetData();
+    texto = tryGetData();
     if(texto == "ConfigurationStarted"){
       Serial.println("ConfigurationStarted");
       return true;
     }
   }
+  
   Serial.println("Ops");
 
   return false;
 }
-/*
-void connect(){
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(500);
-    Serial.print(".");
-  }
-
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
-}*/
 
 /***
   ----------------------------------------------------------------------------------------------------------------------------
@@ -303,6 +429,8 @@ void connect(){
 
 void setup()
 {
+  //SPIFFS.format();
+  
   Serial.begin(115200);
 
   udpRcv.begin(7500);
@@ -318,6 +446,8 @@ void setup()
   // Initializing FTPServer and SPIFFS.
   if(SPIFFS.begin()){
     ftpSrv.begin("admin", "admin"); // Username and password.
+
+    Serial.println("SPIIIFFFF");
     
     //Read File data
     File f = SPIFFS.open("/testMode", "r");
@@ -383,8 +513,19 @@ void setup()
       }while( !result );
     }
   }
-  else{
-
+  else
+  {
+    if( getWifiSettings() )
+    {
+      if( !wifiConnect() )
+      {
+        ESP.restart();
+      }
+    }
+    else
+    {
+        ESP.restart();
+    }
   }
 
   //Serial.println(myIP);
@@ -392,8 +533,8 @@ void setup()
   digitalWrite(ledV1Pin, LOW);
   digitalWrite(ledV2Pin, LOW);
   digitalWrite(ledV3Pin, LOW);
-  Serial.println("IP Address 1");
-  Serial.println(WiFi.localIP());
+  //Serial.println("IP Address 1");
+  //Serial.println(WiFi.localIP());
 }
 
 void readMyoware(){
@@ -494,9 +635,21 @@ void readMyoware(){
       else
       { if (WiFi.status() == WL_CONNECTED)
         {
-          String msg = String(analogIN);
+          String msg;
+          
+          if( testMode )
+          {
+            msg = String(analogIN);
+          }
+          else 
+          {
+            double conversion = (analogIN * ( (5.0/1023.0)*1000.0 ) ) / 10350.0 ;
+            msg = String(conversion);
+          }
+          
           String milstr = String(elapsedMillis);
-          udp.beginPacket(guiIP, 5000);
+          
+          udp.beginPacket(guiIP.c_str(), 5000);
           udp.println(milstr+";"+msg);
           udp.endPacket();
         }
