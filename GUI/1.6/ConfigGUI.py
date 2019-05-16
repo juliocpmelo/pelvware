@@ -13,6 +13,7 @@ labelConected = None
 conected = False
 past_result = None
 checkSerialTimer = QTimer()
+ip_HOST = None
 
 
 
@@ -144,11 +145,23 @@ def writeIpFile(ip):
     path = os.getcwd()
     access_rights = 0o755
     try:
-        os.mkdir(path+'/bin', access_rights)
+        if sys.platform == 'linux' or sys.platform == 'linux2':
+            os.mkdir(path+'/bin', access_rights)
+        elif sys.platform == 'win32':
+            os.mkdir(path+'\\bin', access_rights)
+
     except OSError:
         print("A pasta ja existe")
+        createFile(path, ip)
     else:
+        createFile(path, ip)
+
+def createFile(path, ip):
+    if sys.platform == 'linux' or sys.platform == 'linux2':
         f = open(path+"/bin/.pelvIp.file", "w+")
+        f.write(ip)
+    elif sys.platform == 'win32':
+        f = open(path+"\\bin\\.pelvIp.file", "w+")
         f.write(ip)
 
 def requirePassword():
@@ -157,6 +170,7 @@ def requirePassword():
     ##################################################
     global conected
     global listWifi
+    global ip_HOST
     # gets the selected indexes in the 'QListView'
 
     if not conected:
@@ -177,9 +191,9 @@ def requirePassword():
             # Verify spaces on the password
             if senha != None:
                 #print "SSID: " + ssid + " Senha: " + senha
-                connect = ssid + ";" + senha
+                connect = ssid + ";" + senha + ";" + ip_HOST
                 print(connect)
-                print "ENVIANDO SSID + SENHA"
+                print "ENVIANDO SSID + SENHA + IP"
                 sendData(str(connect))
                 time.sleep(10)
                 response = readData()
@@ -206,12 +220,20 @@ def requirePassword():
                 UpdateSSIDS()
                 conected = False
 
+def connectionDialog():
+    global connected
+    waitingConnection = QDialog()
+    waitingConnection.setWindowTitle('Connecting')
+    waitingConnection.setFixedSize(200,100)
+    waitingConnection.exec_()
 
-def window():
+def window(ip):
     global listWifi
     global labelConected
     global checkSerialTimer
-
+    global ip_HOST
+    ip_HOST = ip
+    print(ip_HOST)
     # app = QApplication(sys.argv)
     win = QDialog()
     # win = QWidget()
@@ -297,12 +319,4 @@ def serial_ports():
         print("Found the Port")
         print(len(list(set(result) - set(past_result))))
         checkSerialTimer.stop()
-        # i = 0
-        # while i < 20:
-        #     ser = serial.Serial(namePort, 115200, timeout=5)
-        #     sendData(str("StartConfiguration"))
-        #     response = waitAndGetData()
-        #     if response == "ConfigurationStarted":
-        #         i = 30
-        #     i = i + 1
         Sync(list(set(result) - set(past_result))[0])
