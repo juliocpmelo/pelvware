@@ -16,6 +16,9 @@ class ApplicationWindow(QtGui.QMainWindow):
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
         self.setWindowTitle("Pelvware")
 
+        self.configWindow = None
+        self.dialog = None
+
         self.rate = 0.4
 
         self.timer1 = QtCore.QTimer()
@@ -58,7 +61,7 @@ class ApplicationWindow(QtGui.QMainWindow):
 
         # The following IP and port are from the Pelvware, in  the future we should keep this data in a file containing the info on
         # many devices
-        self.pelvIP = '192.168.0.17'
+        self.pelvIP = ''
         self.pelvPORT = 7500
 
         # Data to be plotted or processed.
@@ -140,10 +143,44 @@ class ApplicationWindow(QtGui.QMainWindow):
         self.btn3.setEnabled(False)
         self.btn2.setEnabled(False)
 
+        self.readPelvIP()
+
+
+    def readPelvIP(self):
+        try:
+            if sys.platform == 'linux' or sys.platform == 'linux2':
+                f = open(os.getcwd()+'/bin/.pelvIp.file', 'r')
+                self.pelvIP = f.readline().rstrip('\n')
+            elif sys.platform == 'win32':
+                f = open(os.getcwd()+'\\bin\\.pelvIp.file', 'r')
+                self.pelvIP = f.readline().rstrip('\n')
+        except IOError:
+            print("Pelvware nao configurada!!")
+            self.ipNotFoundDialog()
+
+
+    def ipNotFoundDialog(self):
+        self.dialog = QtGui.QDialog()
+        self.dialog.setFixedSize(300, 100)
+
+
+        message = QtGui.QLabel('Pelvware not configured', self.dialog)
+        button = QtGui.QPushButton('Configure', self.dialog)
+        button.clicked.connect(self.dialogButton)
+
+        message.move(83, 30)
+        button.move(110, 50)
+
+        self.dialog.setWindowTitle('Warning!!')
+        self.dialog.exec_()
+
+    def dialogButton(self):
+        self.config()
+        self.dialog.close()
+
     def discoverIp(self):
-        gw = os.popen("ip -4 route show default").read().split()
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect((gw[2], 0))
+        s.connect(('8.8.8.8', 13000))
         self.HOST = s.getsockname()[0]
         s.close()
 
@@ -304,6 +341,9 @@ class ApplicationWindow(QtGui.QMainWindow):
         else:
             self.btn5.deleteLater()
             self.connected = 1
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.sendto('changeMode', (self.pelvIP, self.pelvPORT))
+            sock.close()
             self.buttonConnect()
             self.btn2.setEnabled(False)
             self.readingMode = not self.readingMode
@@ -382,8 +422,6 @@ class ApplicationWindow(QtGui.QMainWindow):
             # thread.start()
 
         else:
-            print(self.controleTeste)
-            print("AHAH")
             # self.controleTeste = not self.controleTeste
             # try:
             #     self.buttonPause()
@@ -484,9 +522,7 @@ class ApplicationWindow(QtGui.QMainWindow):
 
 
     def config(self):
-        configWindow = ConfigGUI.window()
-        # configWindow.show()
-        # configWindow.exec_()
+        self.configWindow = ConfigGUI.window(self.HOST)
 
     # def updateModeLabel():
     #     if
