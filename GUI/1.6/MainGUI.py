@@ -22,14 +22,17 @@ class ApplicationWindow(QtGui.QMainWindow):
         self.rate = 0.4
 
         self.timer1 = QtCore.QTimer()
-        self.timerRcv = QtCore.QTimer()
-        self.timerProc = QtCore.QTimer()
-        self.timerPlt = QtCore.QTimer()
 
         self.timer1.timeout.connect(self.connectionHealth)
-        self.timerRcv.timeout.connect(self.udpThread)
-        self.timerProc.timeout.connect(self.processDataThread)
-        self.timerPlt.timeout.connect(self.pltThread)
+
+
+        self.rcvThread = Thread(target=self.udpThread)
+        self.processingThread = Thread(target=self.processDataThread)
+        self.plotThread = Thread(target=self.pltThread)
+
+        self.rcvThread.daemon = True
+        self.processingThread.daemon = True
+        self.plotThread.daemon = True
 
         # Threads Controllers and Condiotions.
         self.connected = 0
@@ -52,7 +55,6 @@ class ApplicationWindow(QtGui.QMainWindow):
 
 
         # Network Configuration of Host and Port.
-        # self.HOST = socket.gethostbyname(socket.gethostname()) ## estranhamente esta funcao deixou de funcionar na minha vm por isso a comentei.
         self.HOST = ''
         self.PORT = 5000
         self.udp = 0
@@ -188,6 +190,7 @@ class ApplicationWindow(QtGui.QMainWindow):
         self.close()
 
     def closeEvent(self, ce):
+        self.timer1.stop()
         self.fileQuit()
 
     def separateData(self, file):
@@ -196,7 +199,7 @@ class ApplicationWindow(QtGui.QMainWindow):
             self.x.append(a)
             self.y.append(b)
 
-        self.x = list(map(int, self.x))
+        self.x = list(map(float, self.x))
         self.y = list(map(float, self.y))
 
         self.y = map(lambda a: (((a * (3.2 / 1023)) / 10350) * 1000), self.y)
@@ -389,37 +392,18 @@ class ApplicationWindow(QtGui.QMainWindow):
             # self.p2.setClipToView(True)
 
             self.curve1 = self.p1.plot(x=self.x, y=self.y, pen='r')
-            # self.curve2 = self.p2.plot(x=self.x, y=self.y, pen='r')
-            # self.zoomLinearRegion = pg.LinearRegionItem(
-            #     [0, (0 * 0.1)])
-            # self.zoomLinearRegion.setZValue(-10)
-
-            # self.p2.addItem(self.zoomLinearRegion)
-
-            # self.zoomLinearRegion.sigRegionChanged.connect(self.updatePlot)
-            # self.p1.sigXRangeChanged.connect(self.updateRegion)
 
             self.label1.setText('Status da Conexao')
 
-            # timer = QtCore.QTimer()
-            # timer.timeout.connect(connectionHealth)
+
             self.timer1.start(1)
-            # self.timerRcv.start(0.01)
-            # self.timerProc.start(0.021)
-            # self.timerPlt.start(0.05)
 
-                # if timer.isActive():
-                #     print("Rodou")
-
-            rcvThread = Thread(target=self.udpThread)
-            processingThread = Thread(target=self.processDataThread)
-            pltThread = Thread(target=self.pltThread)
-            # thread = Thread(target=self.connectionHealth)
-
-            rcvThread.start()
-            processingThread.start()
-            pltThread.start()
-            # thread.start()
+            try:
+                self.rcvThread.start()
+                self.processingThread.start()
+                self.plotThread.start()
+            except:
+                print('threads already running')
 
         else:
             # self.controleTeste = not self.controleTeste
@@ -432,7 +416,6 @@ class ApplicationWindow(QtGui.QMainWindow):
             self.connected = 0
 
     def udpThread(self):
-        print(self.HOST)
         self.udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.udp.bind(self.orig)
         self.udp.settimeout(2)
@@ -450,7 +433,6 @@ class ApplicationWindow(QtGui.QMainWindow):
             except:
                 print("Timed Out")
         self.udp.close()
-        print("udp closing ")
 
 
     def processDataThread(self):
@@ -524,8 +506,6 @@ class ApplicationWindow(QtGui.QMainWindow):
     def config(self):
         self.configWindow = ConfigGUI.window(self.HOST)
 
-    # def updateModeLabel():
-    #     if
 
 qApp = QtGui.QApplication(sys.argv)
 
