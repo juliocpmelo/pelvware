@@ -32,7 +32,7 @@ boolean testMode = false;
 const char* password = "pelvware123";*/
 
 FtpServer ftpSrv;
-bool pelvMode = false; // Identifies if it's in the Real Time mode. (True = RT Mode ; False = FTP Mode);
+bool pelvMode = true; // Identifies if it's in the Real Time mode. (True = RT Mode ; False = FTP Mode);
 bool rtPause = true;
 WiFiUDP udp;
 WiFiUDP udpRcv;
@@ -548,7 +548,7 @@ void readMyoware(){
    */
   //SPIFFS.format();
 
-  int analogIN = 0;
+  double analogIN = 0;
   const long interval = 5;           // interval of each reading (milliseconds)
   boolean first = true;
   int degree = 0;
