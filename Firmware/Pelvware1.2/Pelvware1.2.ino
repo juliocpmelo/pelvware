@@ -548,7 +548,7 @@ void readMyoware(){
    */
   //SPIFFS.format();
 
-  int analogIN = 0;
+  double analogIN = 0;
   const long interval = 5;           // interval of each reading (milliseconds)
   boolean first = true;
   int degree = 0;
@@ -613,26 +613,27 @@ void readMyoware(){
    * the myoware and the time in millisecond on file system.
    */
       if(pelvMode==false){
-        File f = SPIFFS.open("/teste", "w");
-        //f.println("");
-        f.close();
-        f = SPIFFS.open("/teste", "a");
-        String name = f.name();
+        
+        if( first )
+        {
+          File f = SPIFFS.open("/teste", "w");
+          //f.println("");
+          f.close();
+          first = false;
+        }
+            
+        File f = SPIFFS.open("/teste", "a");
+        //String name = f.name();
 
         if(!f) {
           Serial.println("File open failed");
         }
         else{
 
-          if( first ){
-            first = false;
-          }
-          else
-            f.println("");
 
           f.print(elapsedMillis);
           f.print(";");
-          f.print(analogIN);
+          f.println(analogIN);
         }
         f.close();
       }
@@ -705,7 +706,7 @@ void checkUDPMessage(){
   convertedMsg = "";
   if(packetSize){
     udpRcv.read(rcvMsg, UDP_TX_PACKET_MAX_SIZE);
-    Serial.println("Recebi:");
+    Serial.print("Recebi:");
     Serial.println(rcvMsg);
     convertedMsg = String(rcvMsg);
     memset(rcvMsg, 0, UDP_TX_PACKET_MAX_SIZE);
