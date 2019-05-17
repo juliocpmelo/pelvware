@@ -32,7 +32,7 @@ boolean testMode = false;
 const char* password = "pelvware123";*/
 
 FtpServer ftpSrv;
-bool pelvMode = true; // Identifies if it's in the Real Time mode. (True = RT Mode ; False = FTP Mode);
+bool pelvMode = false; // Identifies if it's in the Real Time mode. (True = RT Mode ; False = FTP Mode);
 bool rtPause = true;
 WiFiUDP udp;
 WiFiUDP udpRcv;
