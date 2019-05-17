@@ -211,13 +211,6 @@ class ApplicationWindow(QtGui.QMainWindow):
     def plotFile(self):
         file = open(self.fileName, 'r')
 
-        # if self.count == 0:
-        #     self.vBoxLayout.addWidget(self.btn)
-        #     self.vBoxLayout.addWidget(self.btn2)
-        #     self.vBoxLayout.addStretch(1)
-        #     self.setGeometry(300, 300, 1200, 800)
-        #     self.count += 1
-
         self.p1.clear()
         self.p2.clear()
 
@@ -241,12 +234,14 @@ class ApplicationWindow(QtGui.QMainWindow):
 
         self.p2.addItem(self.zoomLinearRegion)
 
-        # self.vBoxLayout2.addWidget(self.p1, stretch=6)
-        # self.vBoxLayout2.addWidget(self.p2, stretch=1)
+
 
         self.zoomLinearRegion.sigRegionChanged.connect(self.updatePlot)
         self.p1.sigXRangeChanged.connect(self.updateRegion)
+
+        self.btn.setDisabled(False)
         self.updatePlot()
+
 
     def updatePlots(self):
         while True:
@@ -262,8 +257,8 @@ class ApplicationWindow(QtGui.QMainWindow):
             self.curve1.setData(self.x, self.y)
             self.curve2.setData(self.x, self.y)
 
-            self.zoomLinearRegion.setRegion(
-                [self.x[-1] - self.x[-1] * 0.1, self.x[-1]])
+            # self.zoomLinearRegion.setRegion(
+            #     [self.x[-1] - self.x[-1] * 0.1, self.x[-1]])
 
             self.updatePlot()
             # time.sleep(5)
@@ -271,9 +266,11 @@ class ApplicationWindow(QtGui.QMainWindow):
     def updatePlot(self):
         self.p1.setXRange(*self.zoomLinearRegion.getRegion(), padding=0)
 
+    def updateMainPlot(self):
+        self.p1.setXRange(self.x[-1] - self.x[-1] * 0.1, self.x[-1] , padding=0)
+
     def updateRegion(self):
         if self.controleTeste:
-            print(self.controleTeste)
             self.zoomLinearRegion.setRegion(self.p1.getViewBox().viewRange()[0])
 
     def writeFile(self, text):
@@ -399,8 +396,11 @@ class ApplicationWindow(QtGui.QMainWindow):
             self.timer1.start(1)
 
             try:
+                print('1')
                 self.rcvThread.start()
+                print('2')
                 self.processingThread.start()
+                print('3')
                 self.plotThread.start()
             except:
                 print('threads already running')
@@ -477,7 +477,7 @@ class ApplicationWindow(QtGui.QMainWindow):
                 #     self.zoomLinearRegion.setRegion(
                 #         [self.x[-1] - self.x[-1] * 0.1, self.x[-1]])
 
-                # self.updatePlot()
+                self.updateMainPlot()
                 self.hasNew = False
                 self.hasProcData.release()
 
