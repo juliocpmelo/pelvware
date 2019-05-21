@@ -10,6 +10,7 @@ from PyQt4.QtGui import *
 ser = None
 listWifi = None
 labelConected = None
+buttonConect = None
 conected = False
 past_result = None
 checkSerialTimer = QTimer()
@@ -136,7 +137,7 @@ class PasswordDialog(QWidget):
     def showDialog(self, title, message):
 
         text, ok = QInputDialog.getText(
-            self, title, message, mode=QLineEdit.Password)
+            self, title, message, mode=QLineEdit.Normal) # mode=QLineEdit.Password) to not display password.
 
         if (ok and not (text.isEmpty())):
             return text
@@ -205,6 +206,7 @@ def requirePassword():
                     labelConected.setText("Connected: " + ip)
                     writeIpFile(ip)
                     listWifi.setEnabled(False)
+                    buttonConect.setEnabled(False)
                 else:
                     print "Erro Conexao"
                     print "Error Message: " + response
@@ -230,6 +232,7 @@ def connectionDialog():
 def window(ip):
     global listWifi
     global labelConected
+    global buttonConect
     global checkSerialTimer
     global ip_HOST
     ip_HOST = ip
