@@ -505,6 +505,7 @@ class ApplicationWindow(QtGui.QMainWindow):
 
     def config(self):
         self.configWindow = ConfigGUI.window(self.HOST)
+        self.readPelvIP()
 
 
 qApp = QtGui.QApplication(sys.argv)
