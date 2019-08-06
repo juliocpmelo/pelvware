@@ -1,0 +1,30 @@
+LABCENTER PROTEUS TOOL INFORMATION FILE
+=======================================
+
+In case of difficulty, please e-mail support@labcenter.co.uk
+
+Tool set up for Proteus layout 'ProjetoPelvwarePCBButtons1v4.pdsprj'.
+CADCAM generated at 13:15:48 on terça-feira, 6 de agosto de 2019.
+
+File List
+---------
+Bottom Copper           : ProjetoPelvwarePCBButtons1v4 - CADCAM Bottom Copper.GBR
+Mechanical 1            : ProjetoPelvwarePCBButtons1v4 - CADCAM Mechanical 1.GBR
+Drill, Plated, 1-16     : ProjetoPelvwarePCBButtons1v4 - CADCAM Drill L1 L16 Plated.GBR
+Netlist                 : ProjetoPelvwarePCBButtons1v4 - CADCAM Netlist.IPC
+
+Photoplotter Setup
+------------------
+Format: X2, ASCII, 4.3, metric, absolute, eob=*, LZO
+Notes:  D=Diameter, S=Side, W=Width, H=Height, C=Chamfer, I=Index
+
+D10	CIRCLE  D=0.762mm                                                         DRAW  Conductor
+D11	CIRCLE  D=0.254mm                                                         DRAW  Conductor
+D12	SQUARE  S=2.032mm                                                         FLASH ComponentPad
+D13	CIRCLE  D=1.016mm                                                         FLASH ComponentPad
+D14	CIRCLE  D=0.2032mm                                                        DRAW  Slot
+D15	CIRCLE  D=1.016mm                                                         FLASH ComponentDrill
+D16	CIRCLE  D=0.381mm                                                         FLASH ComponentDrill
+
+
+[END OF FILE]
