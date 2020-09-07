@@ -24,7 +24,7 @@ class ApplicationWindow(QtGui.QMainWindow):
         self.configWindow = None
         self.dialog = None
 
-        self.rate = 0.4
+        self.rate = 1024
 
         ## A Timer object, we run the connection health function through it.
         self.timer1 = QtCore.QTimer()
@@ -549,7 +549,7 @@ class ApplicationWindow(QtGui.QMainWindow):
             data = self.dataToBeProcessed.pop()
             a, b = data.split(';')
             if (float(a)) > self.x[-1]:
-                self.x.append(float(a)) ## float(a)/1000 e o correto.
+                self.x.append(float(a)/1000) ## float(a)/1000 e o correto.
                 self.y.append(float(b))
             print(float(a))
             self.hasNew = True
