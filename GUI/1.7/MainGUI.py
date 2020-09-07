@@ -140,17 +140,14 @@ class ApplicationWindow(QtGui.QMainWindow):
         self.btn4 = QtGui.QPushButton('Change Modes')
         self.btn5 = None
         self.btn6 = QtGui.QPushButton('Change Viewing Mode')
-
-        # This Button should only be active when the probe is the RT Mode
-        # self.btn5 = QtGui.QPushButton('Pause Data Acquisition')
+        self.btn7 = None
+        self.btn8 = None
 
         self.btn.clicked.connect(self.buttonDefault)
         self.btn2.clicked.connect(self.protocolWindow)
-        # self.btn2.clicked.connect(self.buttonConnect)
         self.btn3.clicked.connect(self.buttonPause)
         self.btn4.clicked.connect(self.buttonChange)
         self.btn6.clicked.connect(self.fileViewingMode)
-        # self.btn5.clicked.connect(self.buttonPauseRT)
 
         self.p1 = pg.PlotWidget()  # Main plot
         self.p2 = pg.PlotWidget()  # Scrolling Plot
@@ -311,7 +308,10 @@ class ApplicationWindow(QtGui.QMainWindow):
         self.y = []
         self.separateData(file)
 
-        self.p1.setXRange(0, 45, padding=0)
+        self.startX = 0.0
+        self.endX = 45.0
+
+        self.p1.setXRange(self.startX, self.endX, padding=0)
         self.p1.setYRange(0, self.rate, padding=0)
 
         self.curve1 = self.p1.plot(x=self.x, y=self.y, pen='r')
@@ -714,14 +714,45 @@ class ApplicationWindow(QtGui.QMainWindow):
 
             print(self.statistics)
 
+    def nextPage(self):
+        self.startX = self.endX
+        self.endX = self.startX + 45.0
+        self.p1.setXRange(self.startX, self.endX, padding=0)
+
+    def previousPage(self):
+        self.endX = self.startX
+        self.startX = self.endX - 45.0
+        self.p1.setXRange(self.startX, self.endX, padding=0)
+
     def fileViewingMode(self):
         if self.viewingMode == True:
             self.viewingMode = not self.viewingMode
+            try:
+                self.btn6.deleteLater()
+                self.btn7.deleteLater()
+
+                self.vBoxLayout.removeWidget(self.btn6)
+                self.vBoxLayout.removeWidget(self.btn7)
+
+            except:
+                print("Buttons don't exist")
             self.addScrollingPlot()
             self.plotFile()
         elif self.viewingMode == False:
             self.viewingMode = not self.viewingMode
+            if not self.rtState:
+                self.btn6 = QtGui.QPushButton('<< Previous Page')
+                self.btn7 = QtGui.QPushButton('>> Next Page')
+
+                self.btn6.clicked.connect(self.previousPage)
+                self.btn7.clicked.connect(self.nextPage)
+
+                self.vBoxLayout.addWidget(self.btn6)
+                self.vBoxLayout.addWidget(self.btn7)
+
             self.plotPagedFile()
+
+
 qApp = QtGui.QApplication(sys.argv)
 
 applicationWindow = ApplicationWindow()
