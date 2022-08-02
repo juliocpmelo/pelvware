@@ -1,6 +1,6 @@
 import sys
 import time
-from PyQt4 import QtGui, QtCore
+from PyQt5 import QtGui, QtCore, QtWidgets
 from math import floor
 from threading import Thread, Condition
 import pyqtgraph as pg
@@ -11,7 +11,7 @@ import select
 import ConfigGUI
 import csv
 
-class ApplicationWindow(QtGui.QMainWindow):
+class ApplicationWindow(QtWidgets.QMainWindow):
 
     ## Function that starts the main GUI. It's responsible for calling all the
     ## functions that handle the data processing, hardware interfacing and
@@ -221,10 +221,7 @@ class ApplicationWindow(QtGui.QMainWindow):
 
     ## Used to discover the PC IP.
     def discoverIp(self):
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(('8.8.8.8', 13000))
-        self.HOST = s.getsockname()[0]
-        s.close()
+        self.HOST = (([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")] or [[(s.connect(("8.8.8.8", 53)), s.getsockname()[0], s.close()) for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) + ["no IP found"])[0]
 
     def fileQuit(self):
         self.close()
@@ -753,7 +750,7 @@ class ApplicationWindow(QtGui.QMainWindow):
             self.plotPagedFile()
 
 
-qApp = QtGui.QApplication(sys.argv)
+qApp = QtWidgets.QApplication(sys.argv)
 
 applicationWindow = ApplicationWindow()
 applicationWindow.show()

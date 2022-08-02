@@ -4,8 +4,9 @@ import serial
 import serial.tools.list_ports
 import time
 import os
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtWidgets import QWidget
+from PyQt5.QtGui import *
 
 ser = None
 listWifi = None
@@ -53,14 +54,14 @@ def Sync(value):
 
     if not conected:
         namePort = str(value.__str__())
-        print namePort
+        print(namePort) 
         ser = serial.Serial(namePort, 115200, timeout=20)
         response = readData()
 
         if response == "StartConfiguration":
             sendData("ConfigurationStarted")
             time.sleep(5)
-            print "ENVIANDO SERIAL SYNC"
+            print ("ENVIANDO SERIAL SYNC")
             sendData("SerialSync")
 
             dataRead = readData()
@@ -68,15 +69,15 @@ def Sync(value):
             ########## DEBUG ###########
             #print len(dataRead)
             #print len("SyncOK")
-            print "OSHE"
-            print dataRead
+            print ("OSHE")
+            print (dataRead)
             if dataRead == "SyncOK":
-                print "Synchronized"
+                print ("Synchronized")
                 # Libera a lista de Wifis e Popula
                 UpdateSSIDS()
 
             else:
-                print "Sync Error"
+                print ("Sync Error")
                 # Limpa Lista e Desativa
                 model = QStandardItemModel()
                 listWifi.setModel(model)
@@ -85,13 +86,13 @@ def Sync(value):
 
 def UpdateSSIDS():
 
-    print "ENVIANDO GET WIFI LIST UPDATE"
+    print ("ENVIANDO GET WIFI LIST UPDATE")
     sendData("GetWifiList")
 
     lista = readData()
 
     if lista == "GetWifiListError":
-        print lista
+        print (lista)
         listWifi.setEnabled(False)
     else:
         splitedList = lista.split(';')
@@ -195,36 +196,36 @@ def requirePassword():
             # waitingConnection.show()
             # waitingConnection.activateWindow()
 
-            print "SENHA"
-            print senha
+            print ("SENHA")
+            print (senha)
             # Verify spaces on the password
             if senha != None:
                 #print "SSID: " + ssid + " Senha: " + senha
                 connect = ssid + ";" + senha + ";" + ip_HOST
                 print(connect)
-                print "ENVIANDO SSID + SENHA + IP"
+                print ("ENVIANDO SSID + SENHA + IP")
                 sendData(str(connect))
                 response = readData()
 
                 if response == "Connected":
                     ip = readData()
-                    print response + " IP " + ip
+                    print (response + " IP " + ip)
                     conected = True
                     labelConected.setText("Connected: " + ip)
                     writeIpFile(ip)
                     listWifi.setEnabled(False)
                     buttonConect.setEnabled(False)
                 else:
-                    print "Erro Conexao"
-                    print "Error Message: " + response
+                    print ("Erro Conexao")
+                    print ("Error Message: " + response)
                     UpdateSSIDS()
                     conected = False
             else:
-                print "SSID + SENHA INVALIDO"
+                print ("SSID + SENHA INVALIDO")
                 sendData("0")
                 response = readData()
-                print "QUE FOI ISSO"
-                print response
+                print ("QUE FOI ISSO")
+                print (response)
 
                 UpdateSSIDS()
                 conected = False
