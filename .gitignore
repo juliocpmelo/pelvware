@@ -1,2 +1,5 @@
 GUI/venv
 GUI/__pycache__
+GUI/pelvware-env
+GUI/build
+GUI/*.spec

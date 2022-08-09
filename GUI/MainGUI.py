@@ -1,6 +1,6 @@
 import sys
 import time
-from PyQt5 import QtGui, QtCore, QtWidgets
+from PyQt5 import QtCore, QtWidgets
 from math import floor
 from threading import Thread, Condition
 import pyqtgraph as pg
@@ -17,7 +17,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
     ## functions that handle the data processing, hardware interfacing and
     ## graphic plotting.
     def __init__(self):
-        QtGui.QMainWindow.__init__(self)
+        QtWidgets.QMainWindow.__init__(self)
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
         self.setWindowTitle("Pelvware")
 
@@ -92,7 +92,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         self.statistics = []
 
         # Creation of the menu File
-        self.file_menu = QtGui.QMenu('&File', self)
+        self.file_menu = QtWidgets.QMenu('&File', self)
         self.file_menu.addAction('&Open', self.selectFile)
         self.file_menu.addAction('&Save')
         self.file_menu.addAction('&Configure Pelvware', self.config)
@@ -101,13 +101,13 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         self.menuBar().addMenu(self.file_menu)
 
         # Creation of the main Widget and of the organizational layouts.
-        self.centralWidget = QtGui.QWidget()
+        self.centralWidget = QtWidgets.QWidget()
         self.setCentralWidget(self.centralWidget)
 
         ## Configuring the layout of the main gui.
-        self.hBoxLayout1 = QtGui.QHBoxLayout()
-        self.vBoxLayout = QtGui.QVBoxLayout()
-        self.vBoxLayout2 = QtGui.QVBoxLayout()
+        self.hBoxLayout1 = QtWidgets.QHBoxLayout()
+        self.vBoxLayout = QtWidgets.QVBoxLayout()
+        self.vBoxLayout2 = QtWidgets.QVBoxLayout()
 
         self.hBoxLayout1.addLayout(self.vBoxLayout)
         self.hBoxLayout1.addLayout(self.vBoxLayout2)
@@ -119,12 +119,12 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         pg.setConfigOption('foreground', 'r')
         pg.setConfigOption('leftButtonPan', False)
 
-        self.label1 = QtGui.QLabel()
-        self.label2 = QtGui.QLabel()
-        self.label3 = QtGui.QLabel()
-        self.label4 = QtGui.QLabel()
-        self.label5 = QtGui.QLabel()
-        self.label6 = QtGui.QLabel()
+        self.label1 = QtWidgets.QLabel()
+        self.label2 = QtWidgets.QLabel()
+        self.label3 = QtWidgets.QLabel()
+        self.label4 = QtWidgets.QLabel()
+        self.label5 = QtWidgets.QLabel()
+        self.label6 = QtWidgets.QLabel()
 
         self.label3.setText('Current Mode')
         self.label4.setText('FTP')
@@ -134,12 +134,12 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         self.label6.setText(self.currentProtocol)
         self.label6.setStyleSheet('color: blue')
 
-        self.btn = QtGui.QPushButton('Default')
-        self.btn2 = QtGui.QPushButton('Connect')
-        self.btn3 = QtGui.QPushButton('Pause Plot')
-        self.btn4 = QtGui.QPushButton('Change Modes')
+        self.btn = QtWidgets.QPushButton('Default')
+        self.btn2 = QtWidgets.QPushButton('Connect')
+        self.btn3 = QtWidgets.QPushButton('Pause Plot')
+        self.btn4 = QtWidgets.QPushButton('Change Modes')
         self.btn5 = None
-        self.btn6 = QtGui.QPushButton('Change Viewing Mode')
+        self.btn6 = QtWidgets.QPushButton('Change Viewing Mode')
         self.btn7 = None
         self.btn8 = None
 
@@ -201,12 +201,12 @@ class ApplicationWindow(QtWidgets.QMainWindow):
 
     ## In case the Pelvware isn't configured open a DIalog to start configuring.
     def ipNotFoundDialog(self):
-        self.dialog = QtGui.QDialog()
+        self.dialog = QtWidgets.QDialog()
         self.dialog.setFixedSize(300, 100)
 
 
-        message = QtGui.QLabel('Pelvware not configured', self.dialog)
-        button = QtGui.QPushButton('Configure', self.dialog)
+        message = QtWidgets.QLabel('Pelvware not configured', self.dialog)
+        button = QtWidgets.QPushButton('Configure', self.dialog)
         button.clicked.connect(self.dialogButton)
 
         message.move(83, 30)
@@ -247,7 +247,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         # self.y = map(lambda a: (((a * (3.2 / 1023)) / 10350) * 1000), self.y)
 
     def selectFile(self):
-        self.fileName = QtGui.QFileDialog.getOpenFileName()
+        self.fileName = QtWidgets.QFileDialog.getOpenFileName()
         self.plotFile()
 
     ## Function to make a static plot out of a file.
@@ -417,7 +417,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
             sock.close()
             self.readingMode = not self.readingMode
             # self.rtState = not self.rtState
-            self.btn5 = QtGui.QPushButton('Start Data Acquisition')
+            self.btn5 = QtWidgets.QPushButton('Start Data Acquisition')
             self.btn5.clicked.connect(self.buttonPauseRT)
             self.btn2.setDisabled(False)
             self.vBoxLayout.addWidget(self.btn5)
@@ -607,17 +607,17 @@ class ApplicationWindow(QtWidgets.QMainWindow):
     def protocolWindow(self):
         if self.connected == 0:
             # app = QApplication(sys.argv)
-            win = QtGui.QDialog()
+            win = QtWidgets.QDialog()
             win.setGeometry(400, 300, 200, 100)
-            layout = QtGui.QVBoxLayout()
+            layout = QtWidgets.QVBoxLayout()
 
-            self.b1 = QtGui.QRadioButton("Continuous")
+            self.b1 = QtWidgets.QRadioButton("Continuous")
             self.b1.setChecked(True)
             layout.addWidget(self.b1)
 
-            self.b2 = QtGui.QRadioButton("Evaluative")
+            self.b2 = QtWidgets.QRadioButton("Evaluative")
 
-            btn = QtGui.QPushButton('Ok')
+            btn = QtWidgets.QPushButton('Ok')
             btn.clicked.connect(self.selectedProtocol)
             btn.clicked.connect(self.buttonConnect)
             btn.clicked.connect(win.close)
@@ -642,7 +642,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         self.label6.setText(self.currentProtocol)
 
     def saveSession(self):
-        fileName = QtGui.QFileDialog.getSaveFileName(self, "Save File", "Files (*.csv)")
+        fileName = QtWidgets.QFileDialog.getSaveFileName(self, "Save File", "Files (*.csv)")
         print(fileName)
         with open(fileName, 'w') as csvfile:
             filewriter = csv.writer(csvfile, delimiter=';', quotechar='|', quoting=csv.QUOTE_MINIMAL)
@@ -738,8 +738,8 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         elif self.viewingMode == False:
             self.viewingMode = not self.viewingMode
             if not self.rtState:
-                self.btn6 = QtGui.QPushButton('<< Previous Page')
-                self.btn7 = QtGui.QPushButton('>> Next Page')
+                self.btn6 = QtWidgets.QPushButton('<< Previous Page')
+                self.btn7 = QtWidgets.QPushButton('>> Next Page')
 
                 self.btn6.clicked.connect(self.previousPage)
                 self.btn7.clicked.connect(self.nextPage)
