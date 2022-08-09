@@ -10,6 +10,7 @@ import os
 import select
 import ConfigGUI
 import csv
+from pathlib import Path
 
 class ApplicationWindow(QtWidgets.QMainWindow):
 
@@ -188,14 +189,9 @@ class ApplicationWindow(QtWidgets.QMainWindow):
     ## Functionthat checks if the pelvware has already been configured searching
     ## for the file that contains the pelvware IP.
     def readPelvIP(self):
-        try:
-            if sys.platform == 'linux' or sys.platform == 'linux2':
-                f = open(os.getcwd()+'/bin/.pelvIp.file', 'r')
-                self.pelvIP = f.readline().rstrip('\n')
-            elif sys.platform == 'win32':
-                f = open(os.getcwd()+'\\bin\\.pelvIp.file', 'r')
-                self.pelvIP = f.readline().rstrip('\n')
-        except IOError:
+        data_folder = Path(os.getcwd()+'/bin/')
+        f = data_folder / '.pelvIp.file'
+        if not f.exists():
             print("Pelvware nao configurada!!")
             self.ipNotFoundDialog()
 

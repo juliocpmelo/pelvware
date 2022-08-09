@@ -4,9 +4,9 @@ import serial
 import serial.tools.list_ports
 import time
 import os
-from PyQt5.QtCore import *
-from PyQt5.QtWidgets import QWidget
-from PyQt5.QtGui import *
+from PyQt5.QtCore import QTimer, QObject, QEvent, QRect
+from PyQt5.QtGui import QStandardItemModel, QStandardItem
+from PyQt5.QtWidgets import QDialog, QInputDialog, QWidget, QLabel, QListView, QPushButton, QLineEdit, QFormLayout, QVBoxLayout
 
 ser = None
 listWifi = None
