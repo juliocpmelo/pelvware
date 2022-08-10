@@ -7,7 +7,6 @@ import pyqtgraph as pg
 import numpy as np
 import socket
 import os
-import select
 import ConfigGUI
 import csv
 from pathlib import Path
@@ -70,6 +69,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         self.PORT = 5000
         self.udp = 0
         self.discoverIp()
+        print("Self host {} Port {}".format(self.HOST, self.PORT))
         self.orig = (self.HOST, self.PORT)
 
         # The following IP and port are from the Pelvware, in  the future we should keep this data in a file containing the info on
@@ -194,6 +194,8 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         if not f.exists():
             print("Pelvware nao configurada!!")
             self.ipNotFoundDialog()
+        else :
+            with f.open() as ipFile : self.pelvIP = ipFile.readline().rstrip('\n')
 
     ## In case the Pelvware isn't configured open a DIalog to start configuring.
     def ipNotFoundDialog(self):
@@ -409,7 +411,8 @@ class ApplicationWindow(QtWidgets.QMainWindow):
     def buttonChange(self):
         if not self.readingMode:
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.sendto('changeMode', (self.pelvIP, self.pelvPORT))
+            print ("ip {} port {}".format(self.pelvIP, self.pelvPORT))
+            sock.sendto(b'changeMode', (self.pelvIP, self.pelvPORT))
             sock.close()
             self.readingMode = not self.readingMode
             # self.rtState = not self.rtState
@@ -425,7 +428,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
             self.btn5.deleteLater()
             self.connected = 1
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.sendto('changeMode', (self.pelvIP, self.pelvPORT))
+            sock.sendto(b'changeMode', (self.pelvIP, self.pelvPORT))
             sock.close()
             self.protocolWindow()
             self.btn2.setEnabled(False)
@@ -444,12 +447,12 @@ class ApplicationWindow(QtWidgets.QMainWindow):
     def buttonPauseRT(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         if self.rtState:
-            sock.sendto('pauseRT', (self.pelvIP, self.pelvPORT))
+            sock.sendto(b'pauseRT', (self.pelvIP, self.pelvPORT))
             self.btn5.setText('Start Data Acquisition')
             self.addScrollingPlot()
 
         else:
-            sock.sendto('startRT', (self.pelvIP, self.pelvPORT))
+            sock.sendto(b'startRT', (self.pelvIP, self.pelvPORT))
             self.btn5.setText('Pause Data Acquisition')
             try:
                 self.removeScrollingPlot()
@@ -638,16 +641,17 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         self.label6.setText(self.currentProtocol)
 
     def saveSession(self):
-        fileName = QtWidgets.QFileDialog.getSaveFileName(self, "Save File", "Files (*.csv)")
-        print(fileName)
-        with open(fileName, 'w') as csvfile:
-            filewriter = csv.writer(csvfile, delimiter=';', quotechar='|', quoting=csv.QUOTE_MINIMAL)
-            print("Self.x Length:", len(self.x))
-            print()
-            i = 0
-            while i < len(self.x):
-                filewriter.writerow([self.x[i]] + [self.y[i]])
-                i = i+1
+        fileName = QtWidgets.QFileDialog.getSaveFileName(parent=self, caption="Save File",
+                                       filter="CSV Files (*.csv)")
+        if fileName[0] : #arquivo selecionado / nome digitado
+            with open(fileName[0], 'w') as csvfile:
+                filewriter = csv.writer(csvfile, delimiter=';', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+                print("Self.x Length:", len(self.x))
+                print()
+                i = 0
+                while i < len(self.x):
+                    filewriter.writerow([self.x[i]] + [self.y[i]])
+                    i = i+1
 
     def testFunc(self):
         if self.currentProtocol == "Continuous":

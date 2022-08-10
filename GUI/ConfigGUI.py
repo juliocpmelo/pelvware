@@ -1,9 +1,10 @@
 import sys
 import glob
-import serial
-import serial.tools.list_ports
 import time
 import os
+from pathlib import Path
+import serial
+import serial.tools.list_ports
 from PyQt5.QtCore import QTimer, QObject, QEvent, QRect
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import QDialog, QInputDialog, QWidget, QLabel, QListView, QPushButton, QLineEdit, QFormLayout, QVBoxLayout
@@ -34,7 +35,7 @@ def readData():
     s1 = ser.readline()
     s1 = s1[:-2]
 
-    return s1
+    return s1.decode("utf-8") 
 
 
 def Sync(value):
@@ -57,6 +58,8 @@ def Sync(value):
         print(namePort) 
         ser = serial.Serial(namePort, 115200, timeout=20)
         response = readData()
+        
+        print("response from board: {} ".format(response))
 
         if response == "StartConfiguration":
             sendData("ConfigurationStarted")
@@ -82,6 +85,12 @@ def Sync(value):
                 model = QStandardItemModel()
                 listWifi.setModel(model)
                 listWifi.setEnabled(False)
+        else: 
+            print ("Sync Error")
+            # Limpa Lista e Desativa
+            model = QStandardItemModel()
+            listWifi.setModel(model)
+            listWifi.setEnabled(False)
 
 
 def UpdateSSIDS():
@@ -103,6 +112,7 @@ def UpdateSSIDS():
 
         for i in splitedList:
             item = QStandardItem(i)
+            item.setEditable(False)
             model.appendRow(item)
 
 
@@ -138,33 +148,21 @@ class PasswordDialog(QWidget):
     def showDialog(self, title, message):
 
         text, ok = QInputDialog.getText(
-            self, title, message, mode=QLineEdit.Normal) # mode=QLineEdit.Password) to not display password.
+            self, title, message, QLineEdit.Normal) # mode=QLineEdit.Password) to not display password.
 
-        if (ok and not (text.isEmpty())):
+        if (ok and text):
             return text
 
 def writeIpFile(ip):
-    path = os.getcwd()
-    access_rights = 0o755
-    try:
-        if sys.platform == 'linux' or sys.platform == 'linux2':
-            os.mkdir(path+'/bin', access_rights)
-        elif sys.platform == 'win32':
-            os.mkdir(path+'\\bin', access_rights)
+    data_folder = Path(os.getcwd()+'/bin/')
+    if not data_folder.exists() :
+        data_folder.mkdir(mode=0o755)
+    createFile(data_folder, ip)
 
-    except OSError:
-        print("A pasta ja existe")
-        createFile(path, ip)
-    else:
-        createFile(path, ip)
 
 def createFile(path, ip):
-    if sys.platform == 'linux' or sys.platform == 'linux2':
-        f = open(path+"/bin/.pelvIp.file", "w+")
-        f.write(ip)
-    elif sys.platform == 'win32':
-        f = open(path+"\\bin\\.pelvIp.file", "w+")
-        f.write(ip)
+    file = path / '.pelvIp.file'
+    file.write(ip)
 
 def requirePassword():
     ##################################################
@@ -180,9 +178,7 @@ def requirePassword():
 
         if len(selected_indexes) > 0:
             # gets the selected rows
-            selected_rows = [item.row() for item in selected_indexes]
-
-            ssid = selected_indexes[0].data().toString()
+            ssid = selected_indexes[0].data()
 
             janela = PasswordDialog()
             senha = janela.showDialog('Password Required',
