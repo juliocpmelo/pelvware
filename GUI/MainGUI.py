@@ -1,6 +1,7 @@
 import sys
 import time
 from PyQt5 import QtCore, QtWidgets
+from PyQt5.QtCore import pyqtSignal
 from math import floor
 from threading import Thread, Condition
 import pyqtgraph as pg
@@ -10,8 +11,12 @@ import os
 import ConfigGUI
 import csv
 from pathlib import Path
+from PelvwareSerial import PelvwareSerialHandler, PelvwareSerialManager
 
-class ApplicationWindow(QtWidgets.QMainWindow):
+class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
+
+    data_received = pyqtSignal([float, float])
+    pelvware_connected = pyqtSignal()
 
     ## Function that starts the main GUI. It's responsible for calling all the
     ## functions that handle the data processing, hardware interfacing and
@@ -24,21 +29,21 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         self.configWindow = None
         self.dialog = None
 
-        self.rate = 1024
+        self.rate = 0.4
 
         ## A Timer object, we run the connection health function through it.
-        self.timer1 = QtCore.QTimer()
+        #self.timer1 = QtCore.QTimer()
 
-        self.timer1.timeout.connect(self.connectionHealth)
+        #self.timer1.timeout.connect(self.connectionHealth)
 
         ## Declaration of the threads used in receiving, plotting and processing the data.
-        self.rcvThread = Thread(target=self.udpThread)
-        self.processingThread = Thread(target=self.processDataThread)
-        self.plotThread = Thread(target=self.pltThread)
+        #self.rcvThread = Thread(target=self.udpThread)
+        #self.processingThread = Thread(target=self.processDataThread)
+        #self.plotThread = Thread(target=self.pltThread)
 
-        self.rcvThread.daemon = True
-        self.processingThread.daemon = True
-        self.plotThread.daemon = True
+        #self.rcvThread.daemon = True
+        #self.processingThread.daemon = True
+        #self.plotThread.daemon = True
 
         # Threads Controllers and Condiotions.
         self.connected = 0
@@ -68,14 +73,6 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         self.HOST = ''
         self.PORT = 5000
         self.udp = 0
-        self.discoverIp()
-        print("Self host {} Port {}".format(self.HOST, self.PORT))
-        self.orig = (self.HOST, self.PORT)
-
-        # The following IP and port are from the Pelvware, in  the future we should keep this data in a file containing the info on
-        # many devices
-        self.pelvIP = ''
-        self.pelvPORT = 7500
 
         # Data to be plotted or processed.
         self.dataToBeProcessed = []
@@ -96,7 +93,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         self.file_menu = QtWidgets.QMenu('&File', self)
         self.file_menu.addAction('&Open', self.selectFile)
         self.file_menu.addAction('&Save')
-        self.file_menu.addAction('&Configure Pelvware', self.config)
+        self.file_menu.addAction('&Clear Data', self.clearData)
         self.file_menu.addAction('&Close', self.fileQuit)
 
         self.menuBar().addMenu(self.file_menu)
@@ -181,47 +178,53 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         self.btn.setEnabled(False)
         self.btn3.setEnabled(False)
         self.btn2.setEnabled(False)
+        
+        
+        self.data_received.connect(self.on_data_received)
+        self.pelvware_connected.connect(self.on_pelvware_connected)
+        
+        self.serialManager = PelvwareSerialManager()
+        self.serialManager.addSerialHandler(self)
+        
+      
 
         ## Call the funtion to start configuring the Hardware.
-        self.readPelvIP()
+        #self.readPelvIP()
 
+    def clearData(self):
+        self.x = [0]
+        self.y = [0]
+        self.endX = 45.0
+        self.startX = 0.0
+        # self.x.append(0)
+        # self.y.append(0.0)
+        self.p1.clear()
+        # self.p2.clear()
 
-    ## Functionthat checks if the pelvware has already been configured searching
-    ## for the file that contains the pelvware IP.
-    def readPelvIP(self):
-        data_folder = Path(os.getcwd()+'/bin/')
-        f = data_folder / '.pelvIp.file'
-        if not f.exists():
-            print("Pelvware nao configurada!!")
-            self.ipNotFoundDialog()
-        else :
-            with f.open() as ipFile : self.pelvIP = ipFile.readline().rstrip('\n')
+        self.p1.setDownsampling(mode='peak')
+        # self.p2.setDownsampling(mode='peak')
 
-    ## In case the Pelvware isn't configured open a DIalog to start configuring.
-    def ipNotFoundDialog(self):
-        self.dialog = QtWidgets.QDialog()
-        self.dialog.setFixedSize(300, 100)
+        self.p1.setClipToView(True)
+        # self.p2.setClipToView(True)
 
+        self.p1.setXRange(self.startX, self.endX, padding=0)
 
-        message = QtWidgets.QLabel('Pelvware not configured', self.dialog)
-        button = QtWidgets.QPushButton('Configure', self.dialog)
-        button.clicked.connect(self.dialogButton)
+        self.curve1 = self.p1.plot(x=self.x, y=self.y, pen='r')
 
-        message.move(83, 30)
-        button.move(110, 50)
+        self.label1.setText('Status da Conexao')
 
-        self.dialog.setWindowTitle('Warning!!')
-        self.dialog.exec_()
+        if self.currentProtocol == "Continuous":
+            self.threshold = pg.InfiniteLine(pos=500, angle=0, movable=True, pen='b')
+            self.p1.addItem(self.threshold, ignoreBounds=True)  
+        
+        
 
     def dialogButton(self):
         self.config()
         self.dialog.close()
 
-    ## Used to discover the PC IP.
-    def discoverIp(self):
-        self.HOST = (([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")] or [[(s.connect(("8.8.8.8", 53)), s.getsockname()[0], s.close()) for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) + ["no IP found"])[0]
-
     def fileQuit(self):
+        self.serialManager.stopAllThreads()
         self.close()
 
     def closeEvent(self, ce):
@@ -495,12 +498,12 @@ class ApplicationWindow(QtWidgets.QMainWindow):
 
             self.timer1.start(1)
 
-            try:
+            """try:
                 self.rcvThread.start()
                 self.processingThread.start()
                 self.plotThread.start()
             except:
-                print('threads already running')
+                print('threads already running')"""
 
         else:
             # self.controleTeste = not self.controleTeste
@@ -512,6 +515,44 @@ class ApplicationWindow(QtWidgets.QMainWindow):
             self.btn3.setEnabled(False)
             self.connected = 0
 
+    @QtCore.pyqtSlot(float, float)
+    def on_data_received(self, x_val, y_val):
+        if len(self.x) == 0 or x_val > self.x[-1] :
+            self.x.append(x_val/1000) ## float(a)/1000 e o correto.
+            self.y.append(y_val)
+            self.p1.setXRange(self.startX, self.endX, padding=0)
+            self.p1.setYRange(0, self.rate, padding=0)
+
+            self.curve1.setData(self.x, self.y)
+            self.updateMainPlot()
+    
+    @QtCore.pyqtSlot()
+    def on_pelvware_connected(self):
+        self.connected = 1
+        self.btn3.setDisabled(False)
+        self.clearData()
+        
+    #override from PelvwareSerialHandler
+    def onData(self, data):
+        # print(self.dataToBeProcessed)
+        print("got " + data)
+        a, b = data.split(';')
+        print("processed {} {}".format(a,b))
+        try:
+            x_val = float(b)
+            y_val = float(a)
+            self.data_received.emit(x_val, y_val)
+        except:
+            print("converstion error: {}".format(data))
+        
+    def onDisconnect(self):
+        print("pelvware disconnected")
+        
+    def onConnect(self):
+        self.pelvware_connected.emit()
+        print("pelvware connected")
+      
+    """  
     def udpThread(self):
         self.udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.udp.bind(self.orig)
@@ -524,15 +565,14 @@ class ApplicationWindow(QtWidgets.QMainWindow):
                 self.hasData.acquire()
                 self.dataToBeProcessed.append(msg)
                 # print(self.dataToBeProcessed)
-                self.hasData.notify()
                 self.hasData.release()
 
             except:
                 print("Timed Out")
         self.udp.close()
+    """
 
-
-    def processDataThread(self):
+    """def processDataThread(self):
         while self.connected == 1:
             # if self.connected == 1:
             # print("Processando")
@@ -553,8 +593,9 @@ class ApplicationWindow(QtWidgets.QMainWindow):
             self.hasProcData.release()
             self.hasData.release()
             time.sleep(0.021)
+    """
 
-    def pltThread(self):
+    """def pltThread(self):
         while self.connected == 1:
             self.hasProcData.acquire()
 
@@ -580,7 +621,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
                 time.sleep(0.05)
             else:
                 print("Tamanhos diferentes!")
-
+"""
     def connectionHealth(self):
         if (time.time()-self.startTime) < 0.02:
             self.label2.setText('Muito Boa')

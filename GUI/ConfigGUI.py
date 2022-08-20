@@ -2,7 +2,11 @@ import sys
 import glob
 import time
 import os
+from threading import Thread
 from pathlib import Path
+
+from PelvwareSerial import PelvwareSerialHandler, PelvwareSerialManager
+
 import serial
 import serial.tools.list_ports
 from PyQt5.QtCore import QTimer, QObject, QEvent, QRect
@@ -153,79 +157,6 @@ class PasswordDialog(QWidget):
         if (ok and text):
             return text
 
-def writeIpFile(ip):
-    data_folder = Path(os.getcwd()+'/bin/')
-    if not data_folder.exists() :
-        data_folder.mkdir(mode=0o755)
-    createFile(data_folder, ip)
-
-
-def createFile(path, ip):
-    file = path / '.pelvIp.file'
-    file.write(ip)
-
-def requirePassword():
-    ##################################################
-    # Require the password of the wireless network
-    ##################################################
-    global conected
-    global listWifi
-    global ip_HOST
-    # gets the selected indexes in the 'QListView'
-
-    if not conected:
-        selected_indexes = listWifi.selectedIndexes()
-
-        if len(selected_indexes) > 0:
-            # gets the selected rows
-            ssid = selected_indexes[0].data()
-
-            janela = PasswordDialog()
-            senha = janela.showDialog('Password Required',
-                                      'Enter the network password:')
-
-            # Dilog for connection status.
-            # waitingConnection = QDialog()
-            # waitingConnection.setModal(0)
-            # waitingConnection.setWindowTitle('Connecting')
-            # waitingConnection.setFixedSize(200,100)
-            # waitingConnection.show()
-            # waitingConnection.activateWindow()
-
-            print ("SENHA")
-            print (senha)
-            # Verify spaces on the password
-            if senha != None:
-                #print "SSID: " + ssid + " Senha: " + senha
-                connect = ssid + ";" + senha + ";" + ip_HOST
-                print(connect)
-                print ("ENVIANDO SSID + SENHA + IP")
-                sendData(str(connect))
-                response = readData()
-
-                if response == "Connected":
-                    ip = readData()
-                    print (response + " IP " + ip)
-                    conected = True
-                    labelConected.setText("Connected: " + ip)
-                    writeIpFile(ip)
-                    listWifi.setEnabled(False)
-                    buttonConect.setEnabled(False)
-                else:
-                    print ("Erro Conexao")
-                    print ("Error Message: " + response)
-                    UpdateSSIDS()
-                    conected = False
-            else:
-                print ("SSID + SENHA INVALIDO")
-                sendData("0")
-                response = readData()
-                print ("QUE FOI ISSO")
-                print (response)
-
-                UpdateSSIDS()
-                conected = False
-
 def connectionDialog():
     global connected
     waitingConnection = QDialog()
@@ -263,7 +194,7 @@ def window(ip):
 
     # checkSerialTimer = QTimer()
     checkSerialTimer.timeout.connect(serial_ports)
-    checkSerialTimer.start(1)
+    checkSerialTimer.start(1000)
 
     l2 = QLabel("Select the wireless network SSID:")
 
@@ -301,13 +232,13 @@ def window(ip):
     # sys.exit(app.exec_())
     win.exec_()
 
-def serial_ports():
-    global past_result
-    global checkSerialTimer
-    global ser
 
-    print (past_result)
+def serialPortLookup():
+    serialManager = PelvwareSerialManager()
+    return serialManager
 
+
+"""
     if sys.platform.startswith('win'):
         ports = ['COM%s' % (i + 1) for i in range(256)]
     elif sys.platform.startswith('linux') or sys.platform.startswith('cygwin'):
@@ -334,3 +265,7 @@ def serial_ports():
         print(len(list(set(result) - set(past_result))))
         checkSerialTimer.stop()
         Sync(list(set(result) - set(past_result))[0])
+        
+"""
+        
+   
