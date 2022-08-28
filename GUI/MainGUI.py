@@ -1,9 +1,10 @@
+from concurrent.futures import thread
 import sys
 import time
 from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtCore import pyqtSignal
 from math import floor
-from threading import Thread, Condition
+from threading import Thread, Condition, Timer
 import pyqtgraph as pg
 import numpy as np
 import socket
@@ -12,11 +13,30 @@ import ConfigGUI
 import csv
 from pathlib import Path
 from PelvwareSerial import PelvwareSerialHandler, PelvwareSerialManager
+from Util import RepeatTimer
+import math
+
+
 
 class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
 
-    data_received = pyqtSignal([float, float])
-    pelvware_connected = pyqtSignal()
+    data_received_sig = pyqtSignal([float, float])
+    pelvware_connect_sig = pyqtSignal()
+    pelvware_disconnect_sig = pyqtSignal()
+    
+    #fake data methods
+    def fakeDataGenerator(self):
+        amplitude = 0.1
+        period = 10000 #(ms)
+        #x = time.time() * 1000 - self.start_time
+        if self.connected == 1:
+            x = self.last_x
+            y = amplitude * math.sin(2*math.pi/period*x) + amplitude
+            self.last_x = self.last_x + 50
+            self.data_received_sig.emit(x,y)
+        
+    def fakeConnectionGenerator(self):
+        self.pelvware_connect_sig.emit()
 
     ## Function that starts the main GUI. It's responsible for calling all the
     ## functions that handle the data processing, hardware interfacing and
@@ -30,6 +50,9 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
         self.dialog = None
 
         self.rate = 0.4
+        
+        #total msecs that are visible in the online mode
+        self.default_view_msecs = 10 * 1000 
 
         ## A Timer object, we run the connection health function through it.
         #self.timer1 = QtCore.QTimer()
@@ -149,13 +172,15 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
 
         self.p1 = pg.PlotWidget()  # Main plot
         self.p2 = pg.PlotWidget()  # Scrolling Plot
-        self.p1.setLabel(axis='bottom', text='Time', units='s')
-        self.p1.setLabel(axis='left', text='Voltage', units='mV')
+        self.p1.setLabel(axis='bottom', text='Time', units='sec')
+        self.p1.setLabel(axis='left', text='Voltage', units='volt')
+        self.p1.showGrid(x=False, y=True)
+        
+        self.clearData()
 
         # Element for the threshold used in the continuous protocol.
         self.threshold = None
 
-        self.p1.showGrid(x=False, y=True)
 
         ## Adding elements to main GUI.
         self.vBoxLayout.addWidget(self.label3)
@@ -180,11 +205,25 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
         self.btn2.setEnabled(False)
         
         
-        self.data_received.connect(self.on_data_received)
-        self.pelvware_connected.connect(self.on_pelvware_connected)
+        self.data_received_sig.connect(self.onDataReceived)
+        self.pelvware_connect_sig.connect(self.onPelvwareConnect)
+        self.pelvware_disconnect_sig.connect(self.onPelvwareDisconnect)
         
-        self.serialManager = PelvwareSerialManager()
-        self.serialManager.addSerialHandler(self)
+        self.test = True
+        self.serialManager = None
+        
+        self.plotPaused = False
+        if self.test :
+            self.degree = 0
+            self.start_time = time.time() * 1000
+            self.last_x = 0
+            self.fake_data_timer = RepeatTimer(0.01, self.fakeDataGenerator)
+            self.fake_connection = Timer(1, self.fakeConnectionGenerator, [])
+            self.fake_connection.start()
+            
+        else:            
+            self.serialManager = PelvwareSerialManager()
+            self.serialManager.addSerialHandler(self)
         
       
 
@@ -194,24 +233,25 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
     def clearData(self):
         self.x = [0]
         self.y = [0]
-        self.endX = 45.0
+        self.endX = self.default_view_msecs
         self.startX = 0.0
         # self.x.append(0)
         # self.y.append(0.0)
         self.p1.clear()
         # self.p2.clear()
 
-        self.p1.setDownsampling(mode='peak')
+        # self.p1.setDownsampling(mode='peak')
         # self.p2.setDownsampling(mode='peak')
 
-        self.p1.setClipToView(True)
+        # self.p1.setClipToView(True)
         # self.p2.setClipToView(True)
 
         self.p1.setXRange(self.startX, self.endX, padding=0)
+        self.p1.setYRange(0, self.rate, padding=0)
 
         self.curve1 = self.p1.plot(x=self.x, y=self.y, pen='r')
 
-        self.label1.setText('Status da Conexao')
+        #self.label1.setText('Status da Conexao')
 
         if self.currentProtocol == "Continuous":
             self.threshold = pg.InfiniteLine(pos=500, angle=0, movable=True, pen='b')
@@ -224,12 +264,16 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
         self.dialog.close()
 
     def fileQuit(self):
-        self.serialManager.stopAllThreads()
         self.close()
 
     def closeEvent(self, ce):
-        self.timer1.stop()
+        #self.timer1.stop()
         self.fileQuit()
+        if self.serialManager is not None:
+            self.serialManager.stopAllThreads()
+        if self.test :
+            self.fake_data_timer.cancel()
+            self.fake_data_timer.join()
 
     ## Separate the data received, add into a list and then calculate the real
     ## value.
@@ -338,9 +382,10 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
         self.p1.setXRange(*self.zoomLinearRegion.getRegion(), padding=0)
 
     def updateMainPlot(self):
-        if self.x[-1] >= self.endX:
-            self.startX = self.endX
-            self.endX = self.startX + 45.0
+        #window will follow if the current sample is greater than half of visible window
+        if self.x[-1] >= self.default_view_msecs/2 and not self.plotPaused:
+            self.startX = self.x[-1] - self.default_view_msecs/2
+            self.endX = self.x[-1] + self.default_view_msecs/2
             self.countX = self.countX + 1
 
             if self.countX == 1 and self.currentProtocol == 'Evaluative':
@@ -352,6 +397,8 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
             elif self.countX > 2:
                 self.countX = 0
                 self.statsCounter += 3
+                
+            self.p1.setXRange(self.startX, self.endX, padding=0)
         # if self.currentProtocol == "Continuous":
         #     self.threshold = pg.InfiniteLine(pos=0.5, angle=0, movable=True)
         #     self.p1.addItem(self.threshold)
@@ -403,6 +450,7 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
 
     def buttonPause(self):
         self.controleTeste = not self.controleTeste
+        self.plotPaused = not self.plotPaused
         if not self.controleTeste:
             self.btn.setEnabled(False)
             self.removeScrollingPlot()
@@ -496,15 +544,6 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
                 self.threshold = pg.InfiniteLine(pos=500, angle=0, movable=True, pen='b')
                 self.p1.addItem(self.threshold, ignoreBounds=True)
 
-            self.timer1.start(1)
-
-            """try:
-                self.rcvThread.start()
-                self.processingThread.start()
-                self.plotThread.start()
-            except:
-                print('threads already running')"""
-
         else:
             # self.controleTeste = not self.controleTeste
             # try:
@@ -516,41 +555,44 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
             self.connected = 0
 
     @QtCore.pyqtSlot(float, float)
-    def on_data_received(self, x_val, y_val):
+    def onDataReceived(self, x_val, y_val):
         if len(self.x) == 0 or x_val > self.x[-1] :
-            self.x.append(x_val/1000) ## float(a)/1000 e o correto.
+            #print('appending {} {} '.format(x_val, y_val))
+            self.x.append(x_val) ## float(a)/1000 e o correto.
             self.y.append(y_val)
-            self.p1.setXRange(self.startX, self.endX, padding=0)
-            self.p1.setYRange(0, self.rate, padding=0)
-
+            
             self.curve1.setData(self.x, self.y)
             self.updateMainPlot()
     
     @QtCore.pyqtSlot()
-    def on_pelvware_connected(self):
+    def onPelvwareConnect(self):
+        #print("Pelvware connected")
         self.connected = 1
-        self.btn3.setDisabled(False)
+        self.btn3.setEnabled(True)
+        self.clearData()
+        
+    @QtCore.pyqtSlot()
+    def onPelvwareDisconnect(self):
+        self.connected = 0
+        self.btn3.setEnabled(False)
         self.clearData()
         
     #override from PelvwareSerialHandler
     def onData(self, data):
         # print(self.dataToBeProcessed)
-        print("got " + data)
         a, b = data.split(';')
-        print("processed {} {}".format(a,b))
         try:
             x_val = float(b)
             y_val = float(a)
-            self.data_received.emit(x_val, y_val)
+            self.data_received_sig.emit(x_val, y_val)
         except:
             print("converstion error: {}".format(data))
         
     def onDisconnect(self):
-        print("pelvware disconnected")
+        self.pelvware_disconnect_sig.emit()
         
     def onConnect(self):
-        self.pelvware_connected.emit()
-        print("pelvware connected")
+        self.pelvware_connect_sig.emit()
       
     """  
     def udpThread(self):
@@ -666,10 +708,7 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
             layout.addWidget(btn)
             win.setLayout(layout)
             win.setWindowTitle("Choose Your Protocol")
-
-
             win.exec_()
-
         else:
             self.buttonConnect()
             self.saveSession()
@@ -711,8 +750,6 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
                 self.statistics.append(median)
                 self.statistics.append(std)
                 self.statistics.append(max)
-
-
             print("Stats: ", self.statistics)
 
         elif self.currentProtocol == "Evaluative":
@@ -771,7 +808,6 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
 
                 self.vBoxLayout.removeWidget(self.btn6)
                 self.vBoxLayout.removeWidget(self.btn7)
-
             except:
                 print("Buttons don't exist")
             self.addScrollingPlot()
@@ -795,4 +831,9 @@ qApp = QtWidgets.QApplication(sys.argv)
 
 applicationWindow = ApplicationWindow()
 applicationWindow.show()
+
+
+if applicationWindow.test :
+    applicationWindow.fake_data_timer.start()
+    
 sys.exit(qApp.exec_())
