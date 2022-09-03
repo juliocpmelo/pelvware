@@ -37,6 +37,9 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
         
     def fakeConnectionGenerator(self):
         self.pelvware_connect_sig.emit()
+        self.fake_data_timer = RepeatTimer(0.01, self.fakeDataGenerator)
+        self.fake_data_timer.start()
+        
 
     ## Function that starts the main GUI. It's responsible for calling all the
     ## functions that handle the data processing, hardware interfacing and
@@ -209,26 +212,25 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
         self.pelvware_connect_sig.connect(self.onPelvwareConnect)
         self.pelvware_disconnect_sig.connect(self.onPelvwareDisconnect)
         
-        self.test = True
-        self.serialManager = None
-        
         self.plotPaused = False
-        if self.test :
+        
+        self.serialManager = PelvwareSerialManager()
+        self.serialManager.addSerialHandler(self)
+      
+
+    def setCommandOptions(self, cmdOptions):
+        self.localTestMode = cmdOptions.test
+        #stops serial serial manager and starts local test mode
+        #in this mode we can debug the plot by using local generated data
+        if self.localTestMode :
+            self.serialManager.stopAllThreads()
             self.degree = 0
             self.start_time = time.time() * 1000
             self.last_x = 0
-            self.fake_data_timer = RepeatTimer(0.01, self.fakeDataGenerator)
             self.fake_connection = Timer(1, self.fakeConnectionGenerator, [])
             self.fake_connection.start()
             
-        else:            
-            self.serialManager = PelvwareSerialManager()
-            self.serialManager.addSerialHandler(self)
-        
-      
-
-        ## Call the funtion to start configuring the Hardware.
-        #self.readPelvIP()
+            
 
     def clearData(self):
         self.x = [0]
@@ -271,7 +273,7 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
         self.fileQuit()
         if self.serialManager is not None:
             self.serialManager.stopAllThreads()
-        if self.test :
+        if self.localTestMode :
             self.fake_data_timer.cancel()
             self.fake_data_timer.join()
 
@@ -591,7 +593,8 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
     def onDisconnect(self):
         self.pelvware_disconnect_sig.emit()
         
-    def onConnect(self):
+    def onConnect(self, port):
+        print ('pelvware connectedt to port ' + str(port))
         self.pelvware_connect_sig.emit()
       
     """  
@@ -826,14 +829,24 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
 
             self.plotPagedFile()
 
+import argparse
 
-qApp = QtWidgets.QApplication(sys.argv)
+def parseCommandArgs():
+    parser = argparse.ArgumentParser(description='Pelvware Command Line')
+    parser.add_argument('--test', action='store_true')
+    return parser.parse_args()
 
-applicationWindow = ApplicationWindow()
-applicationWindow.show()
+def main():
+    commandOptions = parseCommandArgs()
+    qApp = QtWidgets.QApplication(sys.argv)
+
+    applicationWindow = ApplicationWindow()
+    applicationWindow.setCommandOptions(commandOptions)
+    applicationWindow.show()
+
+    sys.exit(qApp.exec_())
+
+if __name__=='__main__':
+    main()
 
 
-if applicationWindow.test :
-    applicationWindow.fake_data_timer.start()
-    
-sys.exit(qApp.exec_())

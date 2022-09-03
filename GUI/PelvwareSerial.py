@@ -1,7 +1,8 @@
+from sqlite3 import Time
 from threading import Thread, Lock, Timer
 from pathlib import Path
 
-from PelvwareProtocol import PelvwareCommands, PELVWARE_VERSION
+from PelvwareProtocol import PelvwareCommands, PELVWARE_VERSION, PELVWARE_HEARTBEAT_TIME
 
 import serial
 import serial.tools.list_ports
@@ -18,32 +19,11 @@ class PelvwareSerialHandler:
         pass
     def onDisconnect(self):
         pass
-    def onConnect(self):
+    def onConnect(self,port):
         pass
 
 
-def findPelvware(pelvSerialManager):
-    
-    #tests all serial ports for a pelvware
-    #if any is found, starts the dataHandler thread on it
-    list = serial.tools.list_ports.comports()
-    for p in list:
-        print ("Checking for pelvware at port " + p.device)
-        with serial.Serial(port=p.device, baudrate=115200, timeout=1) as serial_comm:
-            serial_comm.write(PelvwareCommands.VERSION)
-            data = serial_comm.readline()
-            data_str = data.decode(errors='ignore')
-            data_str = data_str.rstrip()
-            print('got {}'.format(data_str))
-            if data_str.startswith('a') and data_str[2:] == PELVWARE_VERSION:
-                pelvSerialManager.pelvwareFound(p.device)
-                pelvSerialManager.dataHandler(serial_comm)
-                break
-            
-    #restarts timer if lost connection, except if its going to terminate
-    if not pelvSerialManager.terminate:
-        pelvSerialManager.serial_timer = Timer(2, findPelvware, [pelvSerialManager])
-        pelvSerialManager.serial_timer.start()
+
     
             
 class PelvwareSerialManager:
@@ -61,13 +41,36 @@ class PelvwareSerialManager:
         
         #creates one thread for each serial port and poll for pelvware in each
         #the polling is done by sending the VERSION command and checking the result
-        self.serial_timer = Timer(2, findPelvware, [self])
+        self.serial_timer = Timer(2, self.findPelvware, [])
         self.serial_timer.start()
-        
+        print ('starting threads')
+
+    def findPelvware(self):
+        #tests all serial ports for a pelvware
+        #if any is found, starts the dataHandler thread on it
+        list = serial.tools.list_ports.comports()
+        for p in list:
+            print ("Checking for pelvware at port " + p.device)
+            with serial.Serial(port=p.device, baudrate=115200, timeout=1) as serial_comm:
+                serial_comm.write(PelvwareCommands.VERSION)
+                data = serial_comm.readline()
+                data_str = data.decode(errors='ignore')
+                data_str = data_str.rstrip()
+                print('got {}'.format(data_str))
+                if data_str.startswith('a') and data_str[2:] == PELVWARE_VERSION:
+                    self.pelvwareFound(p.device)
+                    self.dataHandler(serial_comm)
+                    break
+            
+        #restarts timer if lost connection, except if its going to terminate
+        if not self.terminate:
+            self.serial_timer = Timer(2, self.findPelvware, [])
+            self.serial_timer.start()
 
     def stopAllThreads(self):
         #every thread should run for just 5 secs, thus this method should not block
         #more much more than this
+        print ('stooping threads')
         self.serial_timer.cancel()
         self.terminate = True
         self.serial_timer.join()
@@ -85,7 +88,7 @@ class PelvwareSerialManager:
     def notifyHandlers(self, event, data = None):
         if event == CommunicationEvents.CONNECTED:
             for h in self.handlers:
-                h.onConnect()
+                h.onConnect(data)
         if event == CommunicationEvents.DISCONNECTED:
             for h in self.handlers:
                 h.onDisconnect()
@@ -106,7 +109,7 @@ class PelvwareSerialManager:
         
     #data thread 
     def dataHandler(self, serial_comm):
-        self.notifyHandlers(CommunicationEvents.CONNECTED)
+        self.notifyHandlers(CommunicationEvents.CONNECTED, serial_comm)
         current_command = None
         while True: #loops forever except when there is an error on write or read
             #sends commands if there is any
@@ -131,7 +134,12 @@ class PelvwareSerialManager:
                 elif data_str.startswith('d'):
                     #data comes formatted as "d float unsigned long" 
                     #thus we remove d from protocol and pass on data
-                    self.notifyHandlers(CommunicationEvents.DATA, data_str[2:])
+                    self.timeLastData = Time.time()
+                    if not data.find('hbc') : #hbc is heartbeat
+                        self.notifyHandlers(CommunicationEvents.DATA, data_str[2:])
+                    
+            if self.timeLastData > PELVWARE_HEARTBEAT_TIME: #disconnected due to latency or other communication problems
+                self.notifyHandlers(CommunicationEvents.DISCONNECTED)
             if self.terminate :
                 break
                 
