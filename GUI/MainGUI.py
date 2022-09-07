@@ -1,6 +1,7 @@
 from concurrent.futures import thread
 import sys
 import time
+from PelvwareProtocol import PelvwareCommands
 from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtCore import pyqtSignal
 from math import floor
@@ -159,7 +160,7 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
         self.label6.setStyleSheet('color: blue')
 
         self.btn = QtWidgets.QPushButton('Default')
-        self.btn2 = QtWidgets.QPushButton('Connect')
+        self.testModeBtn = QtWidgets.QPushButton('Toogle Test Mode')
         self.btn3 = QtWidgets.QPushButton('Pause Plot')
         self.btn4 = QtWidgets.QPushButton('Change Modes')
         self.btn5 = None
@@ -168,7 +169,7 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
         self.btn8 = None
 
         self.btn.clicked.connect(self.buttonDefault)
-        self.btn2.clicked.connect(self.protocolWindow)
+        self.testModeBtn.clicked.connect(self.toogleTestMode)
         self.btn3.clicked.connect(self.buttonPause)
         self.btn4.clicked.connect(self.buttonChange)
         self.btn6.clicked.connect(self.fileViewingMode)
@@ -189,7 +190,7 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
         self.vBoxLayout.addWidget(self.label3)
         self.vBoxLayout.addWidget(self.label4)
         self.vBoxLayout.addWidget(self.btn4)
-        self.vBoxLayout.addWidget(self.btn2)
+        self.vBoxLayout.addWidget(self.testModeBtn)
         self.vBoxLayout.addWidget(self.btn3)
         self.vBoxLayout.addWidget(self.btn)
         self.vBoxLayout.addWidget(self.btn6)
@@ -205,7 +206,7 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
 
         self.btn.setEnabled(False)
         self.btn3.setEnabled(False)
-        self.btn2.setEnabled(False)
+        self.testModeBtn.setEnabled(False)
         
         
         self.data_received_sig.connect(self.onDataReceived)
@@ -261,6 +262,11 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
         
         
 
+    def toogleTestMode(self):
+        if self.serialManager is not None:
+            self.serialManager.sendCommand(PelvwareCommands.TOOGLE_TEST_MODE)
+                
+        
     def dialogButton(self):
         self.config()
         self.dialog.close()
@@ -471,7 +477,7 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
             # self.rtState = not self.rtState
             self.btn5 = QtWidgets.QPushButton('Start Data Acquisition')
             self.btn5.clicked.connect(self.buttonPauseRT)
-            self.btn2.setDisabled(False)
+            #self.testModeBtn.setDisabled(False)
             self.vBoxLayout.addWidget(self.btn5)
             self.removeScrollingPlot()
             self.label4.setText("RT")
@@ -484,7 +490,7 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
             sock.sendto(b'changeMode', (self.pelvIP, self.pelvPORT))
             sock.close()
             self.protocolWindow()
-            self.btn2.setEnabled(False)
+            #self.testModeBtn.setEnabled(False)
             self.readingMode = not self.readingMode
             self.vBoxLayout.removeWidget(self.btn5)
             self.label4.setText("FTP")
@@ -520,6 +526,7 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
         if self.connected == 0:
             self.connected = 1
             self.btn3.setDisabled(False)
+            #self.testModeBtn.setEnabled(True)
             # self.controleTeste = 0
             self.x = [0]
             self.y = [0]
@@ -571,24 +578,30 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
         #print("Pelvware connected")
         self.connected = 1
         self.btn3.setEnabled(True)
+        self.testModeBtn.setEnabled(True)
+        
         self.clearData()
         
     @QtCore.pyqtSlot()
     def onPelvwareDisconnect(self):
         self.connected = 0
         self.btn3.setEnabled(False)
+        self.testModeBtn.setEnabled(False)
         self.clearData()
         
     #override from PelvwareSerialHandler
     def onData(self, data):
         # print(self.dataToBeProcessed)
-        a, b = data.split(';')
-        try:
-            x_val = float(b)
-            y_val = float(a)
-            self.data_received_sig.emit(x_val, y_val)
-        except:
-            print("converstion error: {}".format(data))
+        if data.find('OK') == -1 :
+            a, b, c = data.split(' ')
+            try:
+                x_val = float(b)
+                y_val = float(a)
+                self.data_received_sig.emit(x_val, y_val)
+            except:
+                print("converstion error: {}".format(data))
+        else :
+            print ('got ' + data)
         
     def onDisconnect(self):
         self.pelvware_disconnect_sig.emit()

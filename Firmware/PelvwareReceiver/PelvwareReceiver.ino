@@ -2,79 +2,98 @@
 #include <WiFiClient.h>
 #include <WiFiUdp.h>
 #include "FS.h"
-#include <espnow.h>
-#include <ESP8266FtpServer.h>
+#include "PelvwareState.hpp"
 #include "Messages.hpp"
-#include "ReceiverState.hpp"
-
-#define PELVWARE_VERSION "Pelvware-1.0.0"
-
-/*heartbeat each 2 secs*/
-#define PELVWARE_HEARTBEAT_TIME 2000
+#include "PelvwareInfo.hpp"
+#include <espnow.h>
 
 const int buttonPin = D0; // the number of the Button pin
 //const int ledPin =  D4;    // the number of the POWER-ON LED pin
-
-// Led red (D5) not working in this board.
 
 const int ledV1Pin =  D6;    // the number of the POWER-ON LED pin
 const int ledV2Pin =  D5;    // the number of the POWER-ON LED pin
 const int ledV3Pin =  D7;    // the number of the POWER-ON LED pin
 
-const int receiverBuiltinLed = 2; //inverted logic
+/*sensor state*/
+static PelvwareState pelvwareState = PelvwareState::SENSOR_MODE;
 
-// Default parameters for test mode => 0.1 * sin(10x) + 0.1
-double amplitude = 0.1;	// Default amplitude -0.1 to 0.1 // Shifted above zero generating 0 to 0.2 values.
-double period = 10;     // Defaul Period 10.
+// TODO: Function to check testMode file from SPIFFS, and configure testMode if is enabled.
+boolean checkTestMode()
+{  
+  return false;
+}
 
-/*stores the state representation of the receiver*/
-ReceiverState state = ReceiverState::DISCONNECTED;
-
+// Callback when data is sent
 void OnDataSent(uint8_t *mac_addr, uint8_t sendStatus) {
-  if (!sendStatus == 0){
-    state = ReceiverState::DISCONNECTED;
+  if (sendStatus != 0){
+    Serial.println("Cant send messages");
+  }
+}
+
+
+void processCmd(Command cmd){
+  
+  switch (cmd.type)
+  {
+    case CommandType::GET_VERSION:
+    {
+      auto msg = PelvwareMessages::getVersionResponse();
+      esp_now_send(receiverAddress, (uint8_t *) &msg, sizeof(msg));
+      break;
+    }
+    case CommandType::TOOGLE_TEST_MODE:
+    {
+      if(pelvwareState == PelvwareState::SENSOR_MODE)
+        pelvwareState = PelvwareState::TEST_MODE;
+      else
+        pelvwareState = PelvwareState::SENSOR_MODE;
+      break;
+    }
+    default:
+      //should not reach here
+      break;
   }
 }
 
 // Callback when data is received
 void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
-  PelvwareData pelvwareData;
-  static unsigned long timeLastMessage = 0;
-  memcpy(&pelvwareData, incomingData, sizeof(PelvwareData));
-  switch(pelvwareData.type){
-    case MessageType::SENSOR_DATA:
-    {
-      state = ReceiverState::CONNECTED;
-      auto last = millis();
-      auto timeDiff = last - timeLastMessage; //time between last message received and the current
-      Serial.printf("d %lf %lu %lu\n",pelvwareData.content.sensorData.reading, pelvwareData.content.sensorData.timestamp, timeDiff);
-      timeLastMessage = last;
+  PelvwareData data;
+  memcpy(&data, incomingData, sizeof(PelvwareData));
+  switch (data.type)
+  {
+    case MessageType::HEART_BEAT:
+      /*do nothing for now*/
       break;
-    }
+    case MessageType::COMMAND:
+      processCmd(data.content.cmd);
+      break;
     default:
-      Serial.printf("Unsupported data type received\n");
       break;
   }
 }
 
-void setup(){
+void setup()
+{
 
   Serial.begin(115200);
 
-  pinMode(2, OUTPUT);
-  pinMode(14, OUTPUT);
-  
+  pinMode(buttonPin, INPUT);
+  //pinMode(ledPin, OUTPUT);
+  pinMode(ledV1Pin, OUTPUT);
+  pinMode(ledV2Pin, OUTPUT);
+  pinMode(ledV3Pin, OUTPUT);
+
   Serial.println();
   Serial.print("Endereco MAC: ");
   Serial.println(WiFi.macAddress());
 
   WiFi.mode(WIFI_STA);
-
+  // Set ESP-NOW Role
   if (esp_now_init() != 0) {
     Serial.println("Erro ao inicializar o ESP-NOW");
     return;
   }
-  // Set ESP-NOW Role
+
   esp_now_set_self_role(ESP_NOW_ROLE_COMBO);
 
   // Once ESPNow is successfully Init, we will register for Send CB to
@@ -82,80 +101,98 @@ void setup(){
   esp_now_register_send_cb(OnDataSent);
 
   // Register peer
-  esp_now_add_peer(pelvwareAddress, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
+  esp_now_add_peer(receiverAddress, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
   
   // Register for a callback function that will be called when data is received
   esp_now_register_recv_cb(OnDataRecv);
+
+  Serial.println("Starting Pelvware...");
+
+  digitalWrite(ledV1Pin, LOW);
+  digitalWrite(ledV2Pin, LOW);
+  digitalWrite(ledV3Pin, LOW);
 }
 
-boolean sendMessage(PelvwareData &msg){
-  if (esp_now_send(pelvwareAddress, (uint8_t *)&msg, sizeof(msg)) != 0){
-    state = ReceiverState::DISCONNECTED;
-    Serial.println("Cant send hb message");
-    return false;
-  }
-  return true;
-}
 
-#define CMD_DELIM '\n'
-/**
- * Receives dada throgh serial and outpts propper results
- * Supported commands are:
- *  st -> prints to serial current status
- *  ve -> prints to serial current version (value of PELVWARE_VERSION)
- * For debug purposes ignored commands are also printed
-*/
-void processSerialCommands(){
-  if(Serial.available()){
-    String cmd = Serial.readStringUntil(CMD_DELIM);
-    if(cmd == "cn"){
+void readMyoware(){
+
+  static unsigned long lastTimeSent = 0; //last time a measurement was made
+  static int degree = 0; //used in test mode to generate a sine wave
+  unsigned long elapsedMillis = millis();
+
+
+  if (elapsedMillis - lastTimeSent >= SAMPLE_INTERVAL){
+    
+    /*test mode generates sinoidal*/
+    double conversion;
+
+    /*test mode sine wave*/
+    if( pelvwareState == PelvwareState::TEST_MODE )
+    { 
+      const double amplitude = 0.1;	// Default amplitude -0.1 to 0.1 // Shifted above zero generating 0 to 0.2 values.
+      const double period = 1000;     // Defaul Period 1 sec.
+      conversion = ((amplitude * sin(2*PI/period * elapsedMillis)) + amplitude );
     }
-    else if(cmd == "st"){ /*status command*/
-      Serial.printf("d %d", state == ReceiverState::CONNECTED);
+    else
+    {
+      double analogIN = analogRead(A0);
+      //val = (analogIN * ( (5.0/1023.0) ) ) -> adc conversion to V
+      //val = val / 10350.0 ; -> gain conversion back to mV
+      //@see docs/Muscle_sensor_v3_users_manual.pdf to check these numbers
+      conversion = analogIN * ( 5.0/1023.0  ) / 10350.0 ;
     }
-    else if(cmd == "ve"){ /*version command*/
-      Serial.printf("d %s\n", PELVWARE_VERSION);
-    }
-    else if(cmd == "tm"){ /*test mode toogle*/
-      auto data = PelvwareMessages::toogleTestModeMessage();
-      if(!sendMessage(data)){
-        Serial.printf("d FAIL\n");
+      
+    auto pelvwareData = PelvwareMessages::buildSensorMessage(conversion, elapsedMillis);
+
+    esp_now_send(receiverAddress, (uint8_t *) &pelvwareData, sizeof(pelvwareData));
+
+    if( pelvwareState == PelvwareState::TEST_MODE ){ //in test mode use leds to test the sensor
+      double analogIN = analogRead(A0);
+      //val = (analogIN * ( (5.0/1023.0) ) ) -> adc conversion to V
+      //val = val / 10350.0 ; -> gain conversion back to mV
+      //@see docs/Muscle_sensor_v3_users_manual.pdf to check these numbers
+      conversion = analogIN * (5.0/1023.0) / 10350.0;
+      if( analogIN > 300 )
+      {
+        digitalWrite(ledV1Pin, HIGH);
+        digitalWrite(ledV2Pin, HIGH);
+        digitalWrite(ledV3Pin, HIGH);
+      }
+      else if(analogIN > 100)
+      {
+        digitalWrite(ledV1Pin, HIGH);
+        digitalWrite(ledV2Pin, HIGH);
+        digitalWrite(ledV3Pin, LOW);
+      }
+      else
+      {
+        digitalWrite(ledV1Pin, HIGH);
+        digitalWrite(ledV2Pin, LOW);
+        digitalWrite(ledV3Pin, LOW);
       }
     }
-    else{
-      Serial.printf("d Command %s ignored\n",cmd.c_str());
-    }
+    lastTimeSent = elapsedMillis;
   }
 }
 
-void processPelvwareHeartbeat(){
-  static unsigned long lastHeartbeat = 0;
-  auto elapsedTime = millis() - lastHeartbeat;
-  if(elapsedTime > PELVWARE_HEARTBEAT_TIME){ //sends heartbeat to check if it is connected
-    lastHeartbeat = millis();
-    auto data = PelvwareMessages::heartBeatMessage();
-    if (!sendMessage(data))
-      state = ReceiverState::DISCONNECTED;
-  }
+void checkSerial(){
+  /*some debug, or command mode here?*/
 }
 
-void loop(){
 
+void loop()
+{
+  
   static unsigned long lastBlink = 0;
   static int heartBeatLedState = HIGH;
 
-  processSerialCommands();
-  processPelvwareHeartbeat();
+  checkSerial();
+  readMyoware();
 
-  if(state == ReceiverState::CONNECTED){
-    if(millis() - lastBlink >= 1000){
-      heartBeatLedState = (heartBeatLedState == HIGH) ? LOW : HIGH;
-      lastBlink = millis();
-    }
+  if(millis() - lastBlink >= 1000){
+    heartBeatLedState = (heartBeatLedState == HIGH) ? LOW : HIGH;
+    lastBlink = millis();
   }
-  else{ //not connected will stop blinking / turn off
-    heartBeatLedState = HIGH; //D1 mini has inverted logic on builtin led, so to turn it off we must set to HIGH ;x
-  }
-  //Serial.printf("State %d %d\n", state == ReceiverState::CONNECTED, heartBeatLedState);
-  digitalWrite(receiverBuiltinLed, heartBeatLedState);
+
+  digitalWrite(ledV3Pin, heartBeatLedState);
 }

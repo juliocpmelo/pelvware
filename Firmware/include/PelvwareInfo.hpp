@@ -4,6 +4,9 @@
 #define PELVWARE_VERSION "Pelvware-1.0.0"
 #define PELVWARE_VERSION_NUM 100
 
+/*Timeout used to trigger disconnection when PELVWARE_TIMOUT milliseconds have passed since last message received*/
+#define PELVWARE_TIMEOUT 1000
+
 /*sample interval in millisecs*/
 #define SAMPLE_INTERVAL 5 
 

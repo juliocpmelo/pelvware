@@ -7,4 +7,5 @@ PELVWARE_HEARTBEAT_TIME = 2000 + 1000 #original value is 2 secs (2000), sum anot
 class PelvwareCommands:
     STATUS = b'st\n'
     VERSION = b've\n'
+    TOOGLE_TEST_MODE = b'tm\n'
     

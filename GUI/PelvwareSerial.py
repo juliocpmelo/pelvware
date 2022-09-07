@@ -1,4 +1,4 @@
-from sqlite3 import Time
+import time
 from threading import Thread, Lock, Timer
 from pathlib import Path
 
@@ -57,7 +57,7 @@ class PelvwareSerialManager:
                 data_str = data.decode(errors='ignore')
                 data_str = data_str.rstrip()
                 print('got {}'.format(data_str))
-                if data_str.startswith('a') and data_str[2:] == PELVWARE_VERSION:
+                if data_str.startswith('d') and data_str[2:] == PELVWARE_VERSION:
                     self.pelvwareFound(p.device)
                     self.dataHandler(serial_comm)
                     break
@@ -109,10 +109,12 @@ class PelvwareSerialManager:
         
     #data thread 
     def dataHandler(self, serial_comm):
-        self.notifyHandlers(CommunicationEvents.CONNECTED, serial_comm)
         current_command = None
+        connected = False
+        timeLastData = time.time()*1000
         while True: #loops forever except when there is an error on write or read
             #sends commands if there is any
+            current_time = time.time()*1000
             try:
                 #send commands
                 if self.commandPending() and current_command == None:
@@ -120,8 +122,7 @@ class PelvwareSerialManager:
                     serial_comm.write(current_command)
                 #aways read data
                 data = serial_comm.readline()
-            except: #any error on writing/reading
-                print ('Serial port I/O error')
+            except Exception as e: #any error on writing/reading
                 self.notifyHandlers(CommunicationEvents.DISCONNECTED)
                 break
             
@@ -134,12 +135,17 @@ class PelvwareSerialManager:
                 elif data_str.startswith('d'):
                     #data comes formatted as "d float unsigned long" 
                     #thus we remove d from protocol and pass on data
-                    self.timeLastData = Time.time()
-                    if not data.find('hbc') : #hbc is heartbeat
+                    if not data_str.find('FAIL') >= 0 and not data_str.find('OK') >= 0 : #failed command response
+                        timeLastData = current_time
+                        if not connected :
+                            self.notifyHandlers(CommunicationEvents.CONNECTED)
+                            connected = True
                         self.notifyHandlers(CommunicationEvents.DATA, data_str[2:])
-                    
-            if self.timeLastData > PELVWARE_HEARTBEAT_TIME: #disconnected due to latency or other communication problems
+                    else: #answer to command go to next command
+                        current_command = None
+            if current_time - timeLastData > PELVWARE_HEARTBEAT_TIME and connected: #disconnected due to latency or other communication problems
                 self.notifyHandlers(CommunicationEvents.DISCONNECTED)
+                connected = False
             if self.terminate :
                 break
                 
