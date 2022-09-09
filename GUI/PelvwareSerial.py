@@ -56,7 +56,7 @@ class PelvwareSerialManager:
                 data = serial_comm.readline()
                 data_str = data.decode(errors='ignore')
                 data_str = data_str.rstrip()
-                print('got {}'.format(data_str))
+                #print('got {}'.format(data_str))
                 if data_str.startswith('d') and data_str[2:] == PELVWARE_VERSION:
                     self.pelvwareFound(p.device)
                     self.dataHandler(serial_comm)
@@ -128,14 +128,14 @@ class PelvwareSerialManager:
             
             data_str = data.decode(errors='ignore')
             data_str = data_str.rstrip()
-            print ('got {}'.format(data_str))
+            #print ('got {}'.format(data_str))
             if len(data_str) > 0 :
                 if data_str.startswith('a'): #answer to command sent
                     current_command = None
                 elif data_str.startswith('d'):
                     #data comes formatted as "d float unsigned long" 
                     #thus we remove d from protocol and pass on data
-                    if not data_str.find('FAIL') >= 0 and not data_str.find('OK') >= 0 : #failed command response
+                    if not data_str.find('FAIL') >= 0 and not data_str.find('OK') >= 0 : #FAIL/OK command response
                         timeLastData = current_time
                         if not connected :
                             self.notifyHandlers(CommunicationEvents.CONNECTED)
