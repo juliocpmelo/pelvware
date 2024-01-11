@@ -21,6 +21,8 @@ import math
 
 
 
+DEFAULT_VIEW_SECS = 10
+
 
 class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
 
@@ -30,6 +32,7 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
 
     boardTestMode = False
     sessionStoped = False
+    analysisVisible = False
 
     #fake data methods
     def fakeDataGenerator(self):
@@ -62,7 +65,7 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
         self.rate = 0.4
         
         #total msecs that are visible in the online mode
-        self.default_view_secs = 10
+        self.current_view_secs = DEFAULT_VIEW_SECS
 
         # Threads Controllers and Condiotions.
         self.connected = 0
@@ -95,8 +98,8 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
 
         # Data to be plotted or processed.
         self.dataToBeProcessed = []
-        self.x = []
-        self.y = []
+        self.x = np.zeros(1)
+        self.y = np.zeros(1)
         self.dummy_value = 0
         self.time_dummy_value = 0.0
 
@@ -110,8 +113,8 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
 
         # Creation of the menu File
         self.file_menu = QtWidgets.QMenu('&File', self)
-        self.file_menu.addAction('&Abrir', self.openFile)
-        self.file_menu.addAction('&Salvar', self.saveSession)
+        self.file_menu.addAction('&Abrir Sessão', self.openSession)
+        self.file_menu.addAction('&Salvar Sessão', self.saveSession)
         self.file_menu.addAction('&Limpar Dados', self.clearData)
         self.file_menu.addAction('&Close', self.fileQuit)
 
@@ -136,62 +139,30 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
         pg.setConfigOption('foreground', 'r')
         pg.setConfigOption('leftButtonPan', False)
 
-        self.label1 = QtWidgets.QLabel()
-        self.label2 = QtWidgets.QLabel()
-        self.label5 = QtWidgets.QLabel()
-        self.label6 = QtWidgets.QLabel()
-
-        self.label5.setText('Current Protocol')
-        self.label6.setText(self.currentProtocol)
-        self.label6.setStyleSheet('color: blue')
-
-        self.btn = QtWidgets.QPushButton('Default')
-        self.stopSessionBtn = QtWidgets.QPushButton('Finalizar Sessão')
-
-        self.btn.clicked.connect(self.buttonDefault)
-        #self.btn4.clicked.connect(self.buttonChange)
-        #self.btn6.clicked.connect(self.fileViewingMode)
-
         # Main plot
-        self.mainPlot = pg.PlotWidget()  
+        self.mainPlot = pg.PlotWidget(enableMenu=False)  
         self.mainPlot.setLabel(axis='bottom', text='Time', units='sec')
         self.mainPlot.setLabel(axis='left', text='Voltage', units='volt')
         self.mainPlot.showGrid(x=False, y=True)
         self.vBoxLayout2.addWidget(self.mainPlot, stretch=6)
         
         # Scrolling Plot
-        self.scrollingPlot = pg.PlotWidget(enableMenu=False, enableMouse=False,lockAspect=False)  
+        self.scrollingPlot = pg.PlotWidget(enableMenu=False,lockAspect=False)  
         self.scrollingPlot.setLabel(axis='bottom', text='Time', units='sec')
         self.scrollingPlot.setLabel(axis='left', text='Voltage', units='volt')
         self.scrollingPlot.showGrid(x=False, y=True)
-        self.scrollingPlot.setMouseEnabled(x=False, y=False)
-        self.scrollingPlot.plotItem.setMouseEnabled(x=False, y=False)
+        self.vBoxLayout2.addWidget(self.scrollingPlot, stretch=1)
         
         # Scrolling Plot Selection Rect
-        self.scrollingPlotSelectRect = pg.LinearRegionItem(values=(-self.default_view_secs/2, self.default_view_secs/2))
-        self.scrollingPlotSelectRect.sigRegionChanged.connect(self.scrollingPlotSelctRectMoved)
-        self.scrollingPlot.addItem(self.scrollingPlotSelectRect)
-
-        self.vBoxLayout2.addWidget(self.scrollingPlot, stretch=1)
-        self.scrollingPlot.hide()
+        self.scrollingPlotSelectRect = pg.LinearRegionItem(values=(-self.current_view_secs/2, self.current_view_secs/2))
+        self.scrollingPlotSelectRect.sigRegionChanged.connect(self.scrollingPlotSelectChaned)
         
-        
-        
-
-        # Element for the threshold used in the continuous protocol.
-        self.threshold = None
-
-        ## Adding elements to main GUI.
-        
-
         #connection status label
         self.label3 = QtWidgets.QLabel()
-        self.label3.setText('Current Status')
+        self.label3.setText('Status de Conexão:')
         self.vBoxLayout.addWidget(self.label3)
         self.connectionStatusLabel = QtWidgets.QLabel()
         self.vBoxLayout.addWidget(self.connectionStatusLabel)
-
-        
 
         #board test mode button
         if self.boardTestMode:
@@ -201,36 +172,35 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
             self.testModeBtn.setEnabled(False)
 
         #hold plot
-        self.holdPlotButton = QtWidgets.QPushButton('Parar')
-        self.holdPlotButton.clicked.connect(self.holdPlot)
+        self.holdPlotButton = QtWidgets.QPushButton('Parar de Acompanhar')
+        self.holdPlotButton.clicked.connect(lambda: self.holdPlot())
         self.vBoxLayout.addWidget(self.holdPlotButton)
 
-        #show hide scrolling plot button
-        self.showHideScrollingPlotBtn = QtWidgets.QPushButton('Ver Seleção')
-        self.showHideScrollingPlotBtn.clicked.connect(self.showHideScrollingPlot)
-        self.vBoxLayout.addWidget(self.showHideScrollingPlotBtn)
-
-
+        #stop session button
         self.stopSessionBtn = QtWidgets.QPushButton('Finalizar Sessão')
+        self.stopSessionBtn.clicked.connect(lambda : self.stopSession()) 
         self.vBoxLayout.addWidget(self.stopSessionBtn)
-        self.stopSessionBtn.clicked.connect(self.stopSession) 
+        
+        #add analysis
+        self.addAnalysisBtn = QtWidgets.QPushButton('Mostrar Análise')
+        self.addAnalysisBtn.clicked.connect(self.showAnalysis)
+        self.vBoxLayout.addWidget(self.addAnalysisBtn)
 
-        self.vBoxLayout.addWidget(self.btn)
-        self.vBoxLayout.addWidget(self.label5)
-        self.vBoxLayout.addWidget(self.label6)
-        self.vBoxLayout.addWidget(self.label1)
-        self.vBoxLayout.addWidget(self.label2)
+        #analysis rectangle and display info
+        self.analysisRect = pg.LinearRegionItem(values=(-DEFAULT_VIEW_SECS/2, DEFAULT_VIEW_SECS/2), brush=pg.mkBrush(200,200,0,100))
+        self.analysisRect.sigRegionChangeFinished.connect(self.analysisRectChaned)
+        self.analysisText = pg.TextItem(text=self.getAnalysisText(0,0,0,0,0), color=(0,0,0))
+        self.analysisRect.sigRegionChanged.connect(self.updateAnalysisTextPos)
+        self.mainPlot.getViewBox().sigRangeChanged.connect(self.updateAnalysisTextPos)
+
         self.vBoxLayout.addStretch(1)
         self.setGeometry(300, 300, 1200, 800)
 
 
-        self.btn.setEnabled(False)
         self.holdPlotButton.setEnabled(False)
-        
         self.data_received_sig.connect(self.onDataReceived)
         self.pelvware_connect_sig.connect(self.onPelvwareConnect)
         self.pelvware_disconnect_sig.connect(self.onPelvwareDisconnect)
-
 
         self.clearData()
         self.setConnectionStatus(False)
@@ -239,19 +209,54 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
         
         self.serialManager = PelvwareSerialManager()
         self.serialManager.addSerialHandler(self)
+
+    def updateAnalysisTextPos(self):
+        x_range, y_range = self.mainPlot.viewRange()
+        y_pos = y_range[0] + 0.9 * (y_range[1] - y_range[0])
+        rect_x = self.analysisRect.getRegion()[0]
+        self.analysisText.setPos(rect_x, y_pos)
+
+    def getValueAndUint(self,val):
+        if 1 > val and val > 0:
+            return '{} mV'.format(round(val * 1000))
+        else:
+            return '{:.3f} V'.format(val)
         
-        self.showingScrollingPlot = False
-      
-      
-    def scrollingPlotSelctRectMoved(self, rect):
+    def getAnalysisText(self, std, max, min, avg, qavg):
+        
+        return 'std: {}\nmax: {}\nmin: {}\navg: {}\nqavg: {}'.format(
+            self.getValueAndUint(std), 
+            self.getValueAndUint(max), 
+            self.getValueAndUint(min), 
+            self.getValueAndUint(avg), 
+            self.getValueAndUint(qavg))
+
+    def analysisRectChaned(self, rect):
+        reg = rect.getRegion()
+        mask = (self.x >= reg[0]) & (self.x <= reg[1])
+        try:
+            std = np.std(self.y[mask])
+            max = np.max(self.y[mask])
+            min = np.min(self.y[mask])
+            avg = np.average(self.y[mask])
+            qavg = np.sqrt(np.mean(np.square(self.y[mask])))
+
+
+        except:
+            std = 0
+            max = 0
+            min = 0
+            avg = 0
+            qavg = 0
+        self.analysisText.setText(text=self.getAnalysisText(std,max,min,avg,qavg))
+
+    
+    def scrollingPlotSelectChaned(self, rect):
         reg = rect.getRegion()
         self.updateMainPlotView(reg)
-        if not self.plotPaused :
-            self.plotPaused = True
-            self.holdPlotButton.setText("Retormar")
-        #print("vals {}".format(reg))
         
 
+    #Process the command line options
     def setCommandOptions(self, cmdOptions):
         #enables board test mode, user can signal board to generate test signal
         self.boardTestMode = cmdOptions.boardTestMode
@@ -267,27 +272,27 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
             self.fake_connection = Timer(1, self.fakeConnectionGenerator, [])
             self.fake_connection.start()
             
-            
-
-    def clearData(self):
-        self.x = [0]
-        self.y = [0]
-        self.endX = self.default_view_secs
+    #plot
+    def plotData(self, data_x, data_y):
+        self.x = data_x
+        self.y = data_y
+        self.endX = self.current_view_secs
         self.startX = 0.0
-        self.mainPlot.clear()
 
+        self.mainPlot.clear()
         self.mainPlot.setXRange(self.startX, self.endX, padding=0)
         self.mainPlot.setYRange(0, self.rate, padding=0)
-
         self.mainGraphCurve = self.mainPlot.plot(x=self.x, y=self.y, pen='r')
+
+        self.scrollingPlot.clear()
         self.scrollingPlotCurve = self.scrollingPlot.plot(x=self.x, y=self.y, pen='r')
+        self.scrollingPlotSelectRect.setRegion((self.x[-1] - self.current_view_secs/2,
+                                                self.x[-1] + self.current_view_secs/2))
+        self.scrollingPlot.addItem(self.scrollingPlotSelectRect)
 
-        if self.currentProtocol == "Continuous":
-            self.threshold = pg.InfiniteLine(pos=500, angle=0, movable=True, pen='b')
-            self.mainPlot.addItem(self.threshold, ignoreBounds=True)  
+    def clearData(self):
+        self.plotData(np.zeros(1),np.zeros(1))
         
-        
-
     def toogleTestMode(self):
         if self.serialManager is not None:
             self.serialManager.sendCommand(PelvwareCommands.TOOGLE_TEST_MODE)
@@ -304,250 +309,45 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
             self.fake_data_timer.cancel()
             self.fake_data_timer.join()
 
-    ## Separate the data received, add into a list and then calculate the real
-    ## value.
-    def separateData(self, file):
-        for line in file:
-            a, b = line.split(';')
-            self.x.append(a)
-            self.y.append(b)
-
-        self.x = list(map(float, self.x))
-        self.y = list(map(float, self.y))
-
-
-        ## Calculate the real value, taking into account the amplification from
-        ## the hardware.
-        # self.y = map(lambda a: (((a * (3.2 / 1023)) / 10350) * 1000), self.y)
-
-
-    
-
-    def plotPagedFile(self):
-        try:
-            self.hideScrollingPlot()
-        except RuntimeError:
-            print("ScrollingPlot Doesn't exist")
-        file = open(self.fileName, 'r')
-
-        self.mainPlot.clear()
-        self.mainPlot.setDownsampling(mode='peak')
-        self.mainPlot.setClipToView(True)
-
-        self.x = []
-        self.y = []
-        self.separateData(file)
-
-        self.startX = 0.0
-        self.endX = 45.0
-
-        self.mainPlot.setXRange(self.startX, self.endX, padding=0)
-        self.mainPlot.setYRange(0, self.rate, padding=0)
-
-        self.mainGraphCurve = self.mainPlot.plot(x=self.x, y=self.y, pen='r')
-
     def updateMainPlotView(self, region=None):
         #window will follow if the current sample is greater than half of visible window
-        if self.x[-1] >= self.default_view_secs/2 and not self.plotPaused:
-
-            self.startX = self.x[-1] - self.default_view_secs/2
-            self.endX = self.x[-1] + self.default_view_secs/2
-            
-            self.countX = self.countX + 1
-            if self.countX == 1 and self.currentProtocol == 'Evaluative':
-                self.protLinearRegion = pg.LinearRegionItem([self.startX + 25.0, self.startX + 35.0])
-                self.mainPlot.addItem(self.protLinearRegion)
-            if self.countX == 2 and self.currentProtocol == 'Evaluative':
-                self.protLinearRegion = pg.LinearRegionItem([self.startX + 25.0, self.startX + 35.0])
-                self.mainPlot.addItem(self.protLinearRegion)
-            elif self.countX > 2:
-                self.countX = 0
-                self.statsCounter += 3
+        if self.x[-1] >= self.current_view_secs/2 and not self.plotPaused:
+            self.startX = self.x[-1] - self.current_view_secs/2
+            self.endX = self.x[-1] + self.current_view_secs/2
             self.mainPlot.setXRange(self.startX, self.endX, padding=0)
-        elif region is not None: #when plot is paused we can still scroll using the scrolling area
+            self.scrollingPlotSelectRect.setRegion((self.x[-1] - self.current_view_secs/2,
+                                                self.x[-1] + self.current_view_secs/2))
+        #when plot is paused we can still scroll using the scrolling area
+        elif region is not None: 
+            self.current_view_secs = region[1] - region[0]
             self.startX = region[0]
             self.endX = region[1]
             self.mainPlot.setXRange(self.startX, self.endX, padding=0)
-            
-        
-        
-        # if self.currentProtocol == "Continuous":
-        #     self.threshold = pg.InfiniteLine(pos=0.5, angle=0, movable=True)
-        #     self.p1.addItem(self.threshold)
-        #     print("OI")
-
-    def updateRegion(self):
-        if self.controleTeste:
-            self.zoomLinearRegion.setRegion(self.mainPlot.getViewBox().viewRange()[0])
-
-    def writeFile(self, text):
-        file = open('teste.log', 'a')
-        file.write(text)
-        file.write('\n')
-
-
-    def showHideScrollingPlot(self):
-        if self.scrollingPlot.isVisible() :
-            self.hideScrollingPlot()
-            self.showHideScrollingPlotBtn.setText('Ver Seleção')
-        else:
-            self.showScrollingPlot()
-            self.showHideScrollingPlotBtn.setText('Esconder Seleção')
-
-    def hideScrollingPlot(self):
-        self.scrollingPlot.hide()
 
     def showScrollingPlot(self):
-        
         self.scrollingPlot.show()
-        self.scrollingPlotSelectRect.setRegion((self.x[-1] - self.default_view_secs/2,
-                                                self.x[-1] + self.default_view_secs/2))
+        self.scrollingPlotSelectRect.setRegion((self.x[-1] - self.current_view_secs/2,
+                                                self.x[-1] + self.current_view_secs/2))
+
+    def holdPlot(self, force=None):
+        if force is None:
+            self.plotPaused = not self.plotPaused
+        else:
+            self.plotPaused = force
         
-
-        if self.readingMode:
-            self.scrollingPlot.setDownsampling(mode='peak')
-
-            self.scrollingPlot.setClipToView(True)
-
-            self.scrollingPlotCurve = self.scrollingPlot.plot(x=self.x, y=self.y, pen='r')
-            # self.zoomLinearRegion = pg.LinearRegionItem([0, (self.x[-1] * 0.1)])
-            self.zoomLinearRegion = pg.LinearRegionItem([0, 2])
-            self.zoomLinearRegion.setZValue(-10)
-
-            self.scrollingPlot.addItem(self.zoomLinearRegion)
-
-            #self.zoomLinearRegion.sigRegionChanged.connect(self.updatePlot)
-            self.mainPlot.sigXRangeChanged.connect(self.updateRegion)
-            #self.updatePlot()
-
-
-    def buttonDefault(self):
-        if not self.readingMode:
-            region = self.zoomLinearRegion.getRegion()
-            new_region = [floor(region[0]), floor(region[0]) + (self.x[-1] * 0.1)]
-            self.zoomLinearRegion.setRegion(new_region)
-
-        self.updatePlot()
-        self.mainPlot.setYRange(0, self.rate, padding=0) # Original should be 0.4 instead of 1024
-
-
-    def holdPlot(self):
-        self.controleTeste = not self.controleTeste
-        self.plotPaused = not self.plotPaused
         if self.plotPaused :
-            self.holdPlotButton.setText('Retomar')
+            self.holdPlotButton.setText('Acompanhar Gráfico')
         else:
-            self.holdPlotButton.setText('Parar')
-        
-        if not self.controleTeste:
-            self.btn.setEnabled(False)
-        else:
-            self.btn.setDisabled(False)
+            self.holdPlotButton.setText('Parar de Acompanhar')
 
-
-    def buttonChange(self):
-        if not self.readingMode:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            print ("ip {} port {}".format(self.pelvIP, self.pelvPORT))
-            sock.sendto(b'changeMode', (self.pelvIP, self.pelvPORT))
-            sock.close()
-            self.readingMode = not self.readingMode
-            # self.rtState = not self.rtState
-            self.btn5 = QtWidgets.QPushButton('Start Data Acquisition')
-            self.btn5.clicked.connect(self.buttonPauseRT)
-            #self.testModeBtn.setDisabled(False)
-            self.vBoxLayout.addWidget(self.btn5)
-            self.hideScrollingPlot()
-            #self.connectionStatusLabel.setText("RT")
-            #self.connectionStatusLabel.setStyleSheet('color : green')
-
-        else:
-            self.btn5.deleteLater()
-            self.connected = 1
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.sendto(b'changeMode', (self.pelvIP, self.pelvPORT))
-            sock.close()
-            self.protocolWindow()
-            #self.testModeBtn.setEnabled(False)
-            self.readingMode = not self.readingMode
-            self.vBoxLayout.removeWidget(self.btn5)
-            #self.connectionStatusLabel.setText("FTP")
-            #self.connectionStatusLabel.setStyleSheet('color : blue')
-            try:
-                self.hideScrollingPlot()
-            except:
-                print("Grafico inexistente")
-            self.showScrollingPlot()
-
-
-
-    def buttonPauseRT(self):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        if self.rtState:
-            sock.sendto(b'pauseRT', (self.pelvIP, self.pelvPORT))
-            self.btn5.setText('Start Data Acquisition')
-            self.showScrollingPlot()
-
-        else:
-            sock.sendto(b'startRT', (self.pelvIP, self.pelvPORT))
-            self.btn5.setText('Pause Data Acquisition')
-            try:
-                self.hideScrollingPlot()
-            except:
-                print('Grafico inexistente')
-
-
-        self.rtState = not self.rtState
-
-
-    def buttonConnect(self):
-        if self.connected == 0:
-            self.connected = 1
-            self.holdPlotButton.setDisabled(False)
-            #self.testModeBtn.setEnabled(True)
-            # self.controleTeste = 0
-            self.x = [0]
-            self.y = [0]
-            self.endX = 45.0
-            self.startX = 0.0
-            # self.x.append(0)
-            # self.y.append(0.0)
-            self.mainPlot.clear()
-            # self.p2.clear()
-
-            self.mainPlot.setDownsampling(mode='peak')
-            # self.p2.setDownsampling(mode='peak')
-
-            self.mainPlot.setClipToView(True)
-            # self.p2.setClipToView(True)
-
-            self.mainPlot.setXRange(self.startX, self.endX, padding=0)
-
-            self.mainGraphCurve = self.mainPlot.plot(x=self.x, y=self.y, pen='r')
-
-            self.label1.setText('Status da Conexao')
-
-            if self.currentProtocol == "Continuous":
-                self.threshold = pg.InfiniteLine(pos=500, angle=0, movable=True, pen='b')
-                self.mainPlot.addItem(self.threshold, ignoreBounds=True)
-
-        else:
-            # self.controleTeste = not self.controleTeste
-            # try:
-            #     self.buttonPause()
-            # except:
-            #     print("Grafico despausado")
-            self.btn.setEnabled(False)
-            self.holdPlotButton.setEnabled(False)
-            self.connected = 0
 
     @QtCore.pyqtSlot(float, float, float)
     def onDataReceived(self, time, volts, time_between_messages):
         if not self.sessionStoped : #Ignore data if the session has ended
             if len(self.x) == 0 or time > self.x[-1] :
                 #print('appending {} {} '.format(x_val, y_val))
-                self.x.append(time/1000) #time is received in millisecs
-                self.y.append(volts) #y val is received in volts
+                self.x = np.append(self.x, time/1000) #time is received in millisecs
+                self.y = np.append(self.y, volts) #y val is received in volts
                 self.refreshCurves()
                 self.updateMainPlotView()
     
@@ -563,17 +363,15 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
             if self.boardTestMode :
                 self.testModeBtn.setEnabled(True)
             self.holdPlotButton.setEnabled(True)
-            self.connectionStatusLabel.setText('Connected')
+            self.connectionStatusLabel.setText('Conectado')
             self.connectionStatusLabel.setStyleSheet('color : green')
         else:
             self.connected = 0
             self.holdPlotButton.setEnabled(False)
             if self.boardTestMode :
                 self.testModeBtn.setEnabled(False)
-            self.connectionStatusLabel.setText('Disconnected')
+            self.connectionStatusLabel.setText('Desconectado')
             self.connectionStatusLabel.setStyleSheet('color : red')
-            
-            
     
     @QtCore.pyqtSlot()
     def onPelvwareConnect(self):
@@ -625,65 +423,42 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
             self.label2.setText('Desconectado')
             self.label2.setStyleSheet('color: red')
 
-    def stopSession(self):
-        self.sessionStoped = not self.sessionStoped
-        print("x: {} y: {}".format(self.x, self.y))
+    def showAnalysis(self):
+        self.analysisVisible = not self.analysisVisible
+        if self.analysisVisible :
+            self.addAnalysisBtn.setText('Esconder Análise')
+            self.mainPlot.addItem(self.analysisRect)
+            self.mainPlot.addItem(self.analysisText)
+        else:
+            self.mainPlot.removeItem(self.analysisRect)
+            self.mainPlot.removeItem(self.analysisText)
+            self.addAnalysisBtn.setText('Mostrar Análise')
+        
+
+    def stopSession(self, force = None):
+        if force is None :
+            self.sessionStoped = not self.sessionStoped 
+        else:
+            self.sessionStoped = force
+        
         if not self.sessionStoped :
-            self.stopSessionBtn.setText("Reiniciar Sessão")
-           
-        else:
+            self.holdPlot(force=False)
             self.stopSessionBtn.setText("Finalizar Sessão")
-
-    def protocolWindow(self):
-        if self.connected == 0:
-            # app = QApplication(sys.argv)
-            win = QtWidgets.QDialog()
-            win.setGeometry(400, 300, 200, 100)
-            layout = QtWidgets.QVBoxLayout()
-
-            self.b1 = QtWidgets.QRadioButton("Continuous")
-            self.b1.setChecked(True)
-            layout.addWidget(self.b1)
-
-            self.b2 = QtWidgets.QRadioButton("Evaluative")
-
-            btn = QtWidgets.QPushButton('Ok')
-            btn.clicked.connect(self.selectedProtocol)
-            btn.clicked.connect(self.buttonConnect)
-            btn.clicked.connect(win.close)
-
-            layout.addWidget(self.b2)
-            layout.addWidget(btn)
-            win.setLayout(layout)
-            win.setWindowTitle("Choose Your Protocol")
-            win.exec_()
         else:
-            self.buttonConnect()
-            self.saveSession()
-
-    def selectedProtocol(self):
-        if self.b1.isChecked() == True:
-            self.currentProtocol = "Continuous"
-        elif self.b2.isChecked() == True:
-            self.currentProtocol = "Evaluative"
-        self.label6.setText(self.currentProtocol)
-
+            self.holdPlot(force=True)
+            self.stopSessionBtn.setText("Reiniciar Sessão")
 
     ## Function to make a static plot out of a file.
-    def openFile(self):
-        # if self.fileName.contains(".csv"):
-        #     file = csv.reader(self.fileName, delimiter=';')
-        # else:
+    def openSession(self):
+        self.stopSession(force=True)
+        self.holdPlot(force=True)
         fileName, _ = QtWidgets.QFileDialog.getOpenFileName()
-        self.mainPlot.clear()
-        self.scrollingPlot.clear()
-        np_x, np_y = np.loadtxt(fileName, delimiter=',', unpack=True)
-        self.x = np_x.flatten()
-        self.y = np_y.flatten()
-        print('Lidos {} {}'.format(self.x, self.y))
-        self.refreshCurves()
-        self.updateMainPlotView()
 
+        if fileName :
+            self.clearData()
+            np_x, np_y = np.loadtxt(fileName, delimiter=',', unpack=True)
+            self.plotData(np_x, np_y)
+            self.updateMainPlotView()
 
     def saveSession(self):
         fileName, _ = QtWidgets.QFileDialog.getSaveFileName(parent=self, caption="Salvar Arquivo",
@@ -691,98 +466,6 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
         if fileName : #arquivo selecionado / nome digitado
             np.savetxt(fileName, [p for p in zip(self.x, self.y)], delimiter=',')
 
-    def testFunc(self):
-        if self.currentProtocol == "Continuous":
-            average = np.mean(self.y)
-            median = np.median(self.y)
-            std = np.std(self.y)
-            max = np.amax(self.y)
-
-            if len(self.statistics) != 0:
-                self.statistics[0] = average
-                self.statistics[1] = median
-                self.statistics[2] = std
-                self.statistics[2] = max
-            else:
-                self.statistics.append(average)
-                self.statistics.append(median)
-                self.statistics.append(std)
-                self.statistics.append(max)
-            print("Stats: ", self.statistics)
-
-        elif self.currentProtocol == "Evaluative":
-            if self.countX == 0:
-                try:
-                    average = np.mean(self.y[self.x.index(int(self.startX)):self.x.index(int(self.endX))])
-                    median = np.median(self.y[self.x.index(int(self.startX)):self.x.index(int(self.endX))])
-                    std = np.std(self.y[self.x.index(int(self.startX)):self.x.index(int(self.endX))])
-                    max = np.amax(self.y[self.x.index(int(self.startX)):self.x.index(int(self.endX))])
-                except ValueError as e:
-                    average = np.mean(self.y)
-                    median = np.median(self.y)
-                    std = np.std(self.y)
-                    max = np.amax(self.y)
-
-                stats_list = [average, median, std, max]
-            elif self.countX >= 1:
-                x = int(self.protLinearRegion.getRegion()[0])
-                y = int(self.protLinearRegion.getRegion()[1])
-                try:
-                    average = np.mean(self.y[self.x.index(x):self.x.index(y)])
-                    median = np.median(self.y[self.x.index(x):self.x.index(y)])
-                    std = np.std(self.y[self.x.index(x):self.x.index(y)])
-                    max = np.amax(self.y[self.x.index(x):self.x.index(y)])
-                    stats_list = [average, median, std, max]
-                except ValueError as e:
-                    stats_list = [0, 0, 0, 0]
-                    print("Ainda nao chegamos na zona")
-                    print("X", x)
-                    print("Y", y)
-
-
-            try:
-                self.statistics[self.countX+self.statsCounter] = stats_list
-            except IndexError as e:
-                self.statistics.append(stats_list)
-
-            print(self.statistics)
-
-    def nextPage(self):
-        self.startX = self.endX
-        self.endX = self.startX + 45.0
-        self.mainPlot.setXRange(self.startX, self.endX, padding=0)
-
-    def previousPage(self):
-        self.endX = self.startX
-        self.startX = self.endX - 45.0
-        self.mainPlot.setXRange(self.startX, self.endX, padding=0)
-
-    def fileViewingMode(self):
-        if self.viewingMode == True:
-            self.viewingMode = not self.viewingMode
-            try:
-                self.btn6.deleteLater()
-                self.btn7.deleteLater()
-
-                self.vBoxLayout.removeWidget(self.btn6)
-                self.vBoxLayout.removeWidget(self.btn7)
-            except:
-                print("Buttons don't exist")
-            self.showScrollingPlot()
-            self.plotFile()
-        elif self.viewingMode == False:
-            self.viewingMode = not self.viewingMode
-            if not self.rtState:
-                self.btn6 = QtWidgets.QPushButton('<< Previous Page')
-                self.btn7 = QtWidgets.QPushButton('>> Next Page')
-
-                self.btn6.clicked.connect(self.previousPage)
-                self.btn7.clicked.connect(self.nextPage)
-
-                self.vBoxLayout.addWidget(self.btn6)
-                self.vBoxLayout.addWidget(self.btn7)
-
-            self.plotPagedFile()
 
 import argparse
 
