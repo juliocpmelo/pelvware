@@ -3,6 +3,7 @@ import sys
 import time
 from PelvwareProtocol import PelvwareCommands
 from PyQt5 import QtCore, QtWidgets
+from PyQt5.QtWidgets import QMessageBox
 from PyQt5.QtCore import pyqtSignal
 from math import floor
 from threading import Thread, Condition, Timer
@@ -31,6 +32,7 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
     pelvware_disconnect_sig = pyqtSignal()
 
     boardTestMode = False
+    localTestMode = False
     sessionStoped = False
     analysisVisible = False
 
@@ -112,11 +114,10 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
         self.statistics = []
 
         # Creation of the menu File
-        self.file_menu = QtWidgets.QMenu('&File', self)
+        self.file_menu = QtWidgets.QMenu('&Opções', self)
         self.file_menu.addAction('&Abrir Sessão', self.openSession)
         self.file_menu.addAction('&Salvar Sessão', self.saveSession)
-        self.file_menu.addAction('&Limpar Dados', self.clearData)
-        self.file_menu.addAction('&Close', self.fileQuit)
+        self.file_menu.addAction('&Limpar Dados', self.clearDataAction)
 
         self.menuBar().addMenu(self.file_menu)
 
@@ -290,24 +291,41 @@ class ApplicationWindow(QtWidgets.QMainWindow, PelvwareSerialHandler):
                                                 self.x[-1] + self.current_view_secs/2))
         self.scrollingPlot.addItem(self.scrollingPlotSelectRect)
 
+    def showConfirmDialog(self, confirmText):
+        msgBox = QtWidgets.QMessageBox(
+            QMessageBox.Question,
+            "Tem certeza?",
+            confirmText,
+            parent=self)
+        msgBox.setDefaultButton(QMessageBox.No)
+        yes = msgBox.addButton('Sim', QMessageBox.ButtonRole.YesRole)
+        msgBox.addButton('Não', QMessageBox.ButtonRole.NoRole)
+        msgBox.exec()
+        if msgBox.clickedButton() == yes:
+            return True
+        return False
+
+    def clearDataAction(self):
+        if self.showConfirmDialog("Tem certeza que quer limpar os dados? As informações serão perdidas!"):
+            self.clearData()
+
     def clearData(self):
+        
         self.plotData(np.zeros(1),np.zeros(1))
         
     def toogleTestMode(self):
         if self.serialManager is not None:
             self.serialManager.sendCommand(PelvwareCommands.TOOGLE_TEST_MODE)
                 
-    def fileQuit(self):
-        self.close()
-
-    def closeEvent(self, ce):
-        #self.timer1.stop()
-        self.fileQuit()
-        if self.serialManager is not None:
-            self.serialManager.stopAllThreads()
-        if self.localTestMode :
-            self.fake_data_timer.cancel()
-            self.fake_data_timer.join()
+    def closeEvent(self, event):
+        if self.showConfirmDialog("Tem certeza que quer fechar? As informações serão perdidas!"):
+            if self.serialManager is not None:
+                self.serialManager.stopAllThreads()
+            if self.localTestMode :
+                self.fake_data_timer.cancel()
+                self.fake_data_timer.join()
+        else:
+            event.ignore()
 
     def updateMainPlotView(self, region=None):
         #window will follow if the current sample is greater than half of visible window
